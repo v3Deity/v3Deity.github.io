@@ -1,0 +1,17 @@
+body {
+  font-family: Futura;
+  text-align: center;
+  padding: 50px;
+  background-color: #53835c;
+  color: #ffffff;
+}
+
+header {
+  margin-bottom: 50px;
+}
+
+footer {
+  margin-top: 50px;
+  font-size: 0.8em;
+  color: #777;
+}
