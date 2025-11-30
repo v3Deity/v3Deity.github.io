@@ -16,6 +16,12 @@ body {
   align-items: center;
   padding: 8px 12px;
 
+  background-image: url("navtile.png");
+  background-repeat: repeat;
+
+  border-bottom: 3px solid black;
+}
+
   /* navbar bg */
   background-image: url("navtile.png");
   background-repeat: repeat;
@@ -79,4 +85,23 @@ body {
   padding: 30px;
   border-radius: 12px;
   box-shadow: 0 0 12px rgba(0,0,0,0.4);
+  overflow: auto;
 }
+
+/* image class */
+.img-right {
+  float: right;
+  margin: 10px;
+  width: 200px;
+
+  border-radius: 12px;
+
+  filter:
+    drop-shadow(-1px -1px 0 black)
+    drop-shadow( 1px -1px 0 black)
+    drop-shadow(-1px  1px 0 black)
+    drop-shadow( 1px  1px 0 black);
+
+  image-rendering: crisp-edges;
+}
+
