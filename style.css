@@ -101,4 +101,12 @@ body {
 
   image-rendering: smooth;
 }
-
+a, button, input, select, textarea {
+  cursor: url('link-cursor.png'), pointer;
+}
+p, h1, h2, h3, h4, h5, h6, span, div {
+  cursor: url('text-cursor.png'), auto;
+}
+body, html, * {
+  cursor: url('default-cursor.png'), auto;
+}
