@@ -25,7 +25,7 @@ body {
   /* navbar bg */
   background-image: url("navtile.png");
   background-repeat: repeat;
-  background-size: auto;
+  background-size: auto 40px;
 }
 
 /* luh heckin icon with outline yay */
