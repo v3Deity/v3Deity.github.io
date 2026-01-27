@@ -81,13 +81,13 @@
 
     // Update the iframe
     const iframe = document.getElementById("carFrame");
-    iframe.src = "https://en.wikipedia.org/wiki/" + currentCarTitle;
+    iframe.src = "https://en.wikipedia.org/wiki/" + currentCarTitle + "?useskin=minerva";
   }
 
   function openCurrentCarInNewTab() {
     if (!currentCarTitle) return; // safety check
     window.open(
-      "https://en.wikipedia.org/wiki/" + currentCarTitle + "?useskin=minerva",
+      "https://en.wikipedia.org/wiki/" + currentCarTitle,
       "_blank"
     );
   }
