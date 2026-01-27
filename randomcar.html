@@ -47,47 +47,6 @@
 </div>
 
 <script>
-  let cachedCars = null;
-
-  async function goToRandomCar() {
-    const button = document.getElementById("randomCarButton");
-
-    // Fetch once and cache
-    if (!cachedCars) {
-      button.textContent = "Loading cars...";
-      button.disabled = true;
-
-      const PETSCAN_URL = "https://petscan.wmflabs.org/?format=json&min%5Fidentifiers=&ores%5Ftype=any&edits%5Bbots%5D=both&wikidata%5Flabel%5Flanguage=&min%5Fsitelink%5Fcount=&larger=&outlinks%5Fany=&outlinks%5Fno=&max%5Fstatements=&show%5Fsoft%5Fredirects=both&manual%5Flist%5Fwiki=&labels%5Fany=&langs%5Flabels%5Fany=&page%5Fimage=any&language=en&manual%5Flist=&output%5Flimit=&doit=Do%20it%21&templates%5Fno=Infobox%20concept%20car%0D%0AInfobox%20automobile%20engine&labels%5Fyes=&interface%5Flanguage=en&show%5Fredirects=both&ns%5B0%5D=1&pagepile=&sitelinks%5Fno=&cb%5Flabels%5Fany%5Fl=1&langs%5Flabels%5Fyes=&cb%5Flabels%5Fyes%5Fl=1&max%5Fage=&ores%5Fprob%5Ffrom=&min%5Fstatements=&max%5Fidentifiers=&sitelinks%5Fyes=&links%5Fto%5Fno=&minlinks=&links%5Fto%5Fany=&outlinks%5Fyes=&max%5Fsitelink%5Fcount=&combination=subset&sparql=&search%5Fquery=&wpiu=any&templates%5Fyes=Infobox%20automobile%0D%0A&project=wikipedia&search%5Fwiki=&namespace%5Fconversion=keep&depth=0&maxlinks=&referrer%5Fname=&search%5Ffilter=&smaller=&wikidata%5Fprop%5Fitem%5Fuse=&subpage%5Ffilter=either&cb%5Flabels%5Fno%5Fl=1&min%5Fredlink%5Fcount=1&before=&templates%5Fany=&since%5Frev0=&search%5Fmax%5Fresults=500&links%5Fto%5Fall=&categories=&common%5Fwiki=auto&common%5Fwiki%5Fother=&edits%5Bflagged%5D=both&source%5Fcombination=&wikidata%5Fitem=no&sitelinks%5Fany=&langs%5Flabels%5Fno=&output%5Fcompatability=catscan&ores%5Fprediction=any&sortorder=ascending&labels%5Fno=&negcats=&referrer%5Furl=&active%5Ftab=tab%5Foutput&show%5Fdisambiguation%5Fpages=both&edits%5Banons%5D=both&sparql%5Fserver=wikidata&ores%5Fprob%5Fto=&rxp%5Ffilter=&after=&wikidata%5Fsource%5Fsites=&sortby=none";
-
-      try {
-        const res = await fetch(PETSCAN_URL);
-        const data = await res.json();
-        cachedCars = data["*"];
-      } catch (err) {
-        alert("Failed to load car list");
-        console.error(err);
-        return;
-      } finally {
-        button.textContent = "Random Car Model";
-        button.disabled = false;
-      }
-    }
-
-    // Pick a random car
-    const random =
-      cachedCars[Math.floor(Math.random() * cachedCars.length)];
-
-    const title = random.title.replace(/ /g, "_");
-
-    window.open(
-      "https://en.wikipedia.org/wiki/" + title,
-      "_blank"
-    );
-  }
-
-  document
-    .getElementById("randomCarButton")
-    .addEventListener("click", goToRandomCar);
 </script>
 
 </body>
