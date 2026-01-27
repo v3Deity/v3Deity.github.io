@@ -41,21 +41,29 @@
 <div class="content-box">
   <h1>Deity's Random Car Page</h1>
 
-  <button id="randomCarButton">
-    New Random Car
-  </button>
+  <div class="button-container">
+    <button id="randomCarButton">
+      Random Car Model
+    </button>
+    <button id="openInTabButton">
+      Open in Wikipedia
+    </button>
+  </div>
   <iframe id="carFrame" width="100%" height="500"></iframe>
 </div>
 
 <script>
   let cachedCars = null;
+  let currentCarTitle = ""; // keeps track of currently displayed car
 
   async function loadCarList() {
     if (!cachedCars) {
       try {
-        const res = await fetch("/data/car_models.json");
+        const res = await fetch("/data/car_models.json"); // JSON path
         cachedCars = await res.json();
-        
+
+        // If using Sparse with "0:" prefixes, uncomment:
+        // cachedCars = cachedCars.map(title => title.replace(/^0:/, ''));
       } catch (err) {
         alert("Failed to load car list");
         console.error(err);
@@ -69,18 +77,37 @@
     const random =
       cachedCars[Math.floor(Math.random() * cachedCars.length)];
 
-    const title = random.replace(/ /g, "_");
+    currentCarTitle = random.replace(/ /g, "_"); // save current car for “Open in Wikipedia”
 
+    // Update the iframe
     const iframe = document.getElementById("carFrame");
-    iframe.src = "https://en.wikipedia.org/wiki/" + title;
+    iframe.src = "https://en.wikipedia.org/wiki/" + currentCarTitle;
+  }
+
+  function openCurrentCarInNewTab() {
+    if (!currentCarTitle) return; // safety check
+    window.open(
+      "https://en.wikipedia.org/wiki/" + currentCarTitle,
+      "_blank"
+    );
   }
 
   document.addEventListener("DOMContentLoaded", async () => {
+    // Load car list once
     await loadCarList();
+
+    // Show a random car immediately when the page loads
     showRandomCar();
+
+    // Set up button click to show a new random car
     document
       .getElementById("randomCarButton")
       .addEventListener("click", showRandomCar);
+
+    // Set up button click to open current car in a new tab
+    document
+      .getElementById("openInTabButton")
+      .addEventListener("click", openCurrentCarInNewTab);
   });
 </script>
 
