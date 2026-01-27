@@ -47,6 +47,51 @@
 </div>
 
 <script>
+  let cachedCars = null;
+
+  async function goToRandomCar() {
+    const button = document.getElementById("randomCarButton");
+
+    // Fetch once and cache
+    if (!cachedCars) {
+      button.textContent = "Loading cars...";
+      button.disabled = true;
+
+      try {
+        const res = await fetch("/data/car_models.json"); // Path to your JSON
+        cachedCars = await res.json();
+
+        // If using Sparse format with "0:" prefixes, uncomment this:
+        // cachedCars = cachedCars.map(title => title.replace(/^0:/, '').replace(/ /g, "_"));
+        // If already clean array, comment out above line
+
+      } catch (err) {
+        alert("Failed to load car list ");
+        console.error(err);
+        button.textContent = "Random Car Model";
+        button.disabled = false;
+        return;
+      } finally {
+        button.textContent = "Random Car Model";
+        button.disabled = false;
+      }
+    }
+
+    // Pick a random car
+    const random =
+      cachedCars[Math.floor(Math.random() * cachedCars.length)];
+
+    const title = random.replace(/ /g, "_"); // spaces → underscores
+
+    window.open(
+      "https://en.wikipedia.org/wiki/" + title,
+      "_blank"
+    );
+  }
+
+  document
+    .getElementById("randomCarButton")
+    .addEventListener("click", goToRandomCar);
 </script>
 
 </body>
