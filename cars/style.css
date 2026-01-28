@@ -1,0 +1,131 @@
+/* font */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Libertinus Mono", monospace;
+
+  /* bg shit */
+  background-image: url("bg-tile.png");
+  background-repeat: repeat;
+}
+
+/* navbar */ 
+.navbar {
+  width: calc(100%-16px);
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+
+  /* navbar bg */
+  background-image: url("navtile.png");
+  background-repeat: repeat;
+  background-size: 40px;
+
+  /*line*/
+  border-bottom: 3px solid black;
+}
+
+/* luh heckin icon with outline yay */
+.navbar-icon img {
+  height: 40px;
+  width: 40px;
+  image-rendering: smooth;
+
+  filter:
+    drop-shadow(-1px -1px 0 black)
+    drop-shadow( 1px -1px 0 black)
+    drop-shadow(-1px  1px 0 black)
+    drop-shadow( 1px  1px 0 black);
+}
+
+/* navbar links */
+.navbar-links {
+  margin-left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.navbar-links a {
+  color: white;
+  font-weight: bold;
+  text-decoration: none;
+
+  /* luh outline */
+  text-shadow:
+    -1px -1px 0 black,
+     1px -1px 0 black,
+    -1px  1px 0 black,
+     1px  1px 0 black;
+}
+
+.navbar-links a:hover {
+  opacity: 0.8;
+}
+
+.divider {
+  color: white;
+  font-weight: bold;
+  text-shadow:
+    -1px -1px 0 black,
+     1px -1px 0 black,
+    -1px  1px 0 black,
+     1px  1px 0 black;
+}
+
+/* stuff */
+.content-box {
+  max-width: 800px;
+  margin: 40px auto;
+  background-color: #d8d8d8;
+  color: black;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 0 12px rgba(0,0,0,0.4);
+  overflow: auto;
+}
+
+/* image class */
+.img-right {
+  float: right;
+  margin: 10px;
+  width: 200px;
+
+  border-radius: 12px;
+
+  filter:
+    drop-shadow(-1px -1px 0 black)
+    drop-shadow( 1px -1px 0 black)
+    drop-shadow(-1px  1px 0 black)
+    drop-shadow( 1px  1px 0 black);
+
+  image-rendering: smooth;
+}
+
+.button-container button {
+  padding: 7px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  border-radius: 6px;
+  border: 3px solid #000;
+  background-color: #fff;
+  transition: background 0.2s;
+  font-family: "Libertinus Mono", monospace;
+  background-image: url("navtile.png");
+  background-repeat: repeat;
+  background-size: 50px;
+  color: white;
+  text-shadow: -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black, 1px 1px 0 black;
+  background-position: center;
+}
+
+/*
+a, button, input, select, textarea {
+  cursor: url('link-cursor.png'), pointer;
+}
+p, h1, h2, h3, h4, h5, h6, span {
+  cursor: url('text-cursor.png'), auto;
+}
+body, div, html, * {
+  cursor: url('default-cursor.png'), auto;
+}*/
