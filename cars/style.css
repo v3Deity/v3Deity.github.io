@@ -77,8 +77,8 @@ body {
 .content-box {
   max-width: 800px;
   margin: 40px auto;
-  background-color: #d8d8d8;
-  color: black;
+  background-color: #1f1f22;
+  color: whitesmoke;
   padding: 30px;
   border-radius: 12px;
   box-shadow: 0 0 12px rgba(0,0,0,0.4);
