@@ -32,7 +32,7 @@
   <h1>Deity's Random Car Quiz</h1>
   <hr>
 
-  <div id="car-header" style="display:flex; align-items:center; gap:20px; justify-content:center;">
+  <div id="car-header" style="display:flex; align-items:center; gap:20px;">
     <img id="car-image"
       src="placeholder.png"
       onerror="this.src='placeholder.png';"
@@ -42,7 +42,7 @@
 
   <br>
 
-  <table id="quiz-table" style="width:100%; border-collapse:collapse; text-align:center;">
+  <table id="quiz-table" style="width:100%; border-collapse:collapse;">
     <thead>
       <tr>
         <th>Property</th>
@@ -56,7 +56,7 @@
 
   <hr>
 
-  <div class="button-container" style="text-align:center;">
+  <div class="button-container">
     <button id="revealAllButton">Reveal All</button>
     <button id="randomCarButton">New Car Model</button>
     <button id="openInTabButton">➹ Wikipedia</button>
@@ -98,21 +98,22 @@ function cleanWikitext(text) {
 /* === {{convert}} handling === */
 function parseConvertTemplates(text) {
   return text.replace(/\{\{convert\|([^}]+)\}\}/g, (_, args) => {
-    const p = args.split("|");
-    const v = parseFloat(p[0]);
-    const from = p[1];
-    const to = p[2];
-    const d = parseInt(p[3] || 0);
+    const parts = args.split("|");
+    const value = parseFloat(parts[0]);
+    const from = parts[1];
+    const to = parts[2];
+    const decimals = parseInt(parts[3] || 0);
 
-    const map = {
-      in: { mm: x => x * 25.4 },
-      lb: { kg: x => x * 0.453592 },
-      bhp: { kW: x => x * 0.7457 }
+    const conversions = {
+      in: { mm: v => v * 25.4 },
+      lb: { kg: v => v * 0.453592 },
+      bhp: { kW: v => v * 0.7457 }
     };
 
-    if (!map[from] || !map[from][to]) return p[0];
+    if (!conversions[from] || !conversions[from][to]) return parts[0];
 
-    return `${v.toLocaleString()} ${from} (${map[from][to](v).toLocaleString(undefined,{maximumFractionDigits:d})} ${to})`;
+    const converted = conversions[from][to](value);
+    return `${value.toLocaleString()} ${from} (${converted.toLocaleString(undefined,{maximumFractionDigits:decimals})} ${to})`;
   });
 }
 
@@ -145,25 +146,26 @@ async function fetchCarData(title) {
   const data = await res.json();
   const wikitext = data.parse.wikitext["*"];
 
-  const box = wikitext.match(/\{\{Infobox automobile([\s\S]*?)\n\}\}/);
-  if (!box) return null;
+  const infobox = wikitext.match(/\{\{Infobox automobile([\s\S]*?)\n\}\}/);
+  if (!infobox) return null;
 
-  const rows = box[1].split("\n").filter(l => l.startsWith("|"));
+  const lines = infobox[1].split("\n").filter(l => l.startsWith("|"));
 
-  const properties = rows.map(l => {
-    const [k, ...r] = l.slice(1).split("=");
-    const key = k.trim().toLowerCase();
-    const raw = r.join("=").trim();
-    if (!raw || INFOBOX_BLACKLIST.includes(key)) return null;
+  const properties = lines.map(line => {
+    const [key, ...rest] = line.slice(1).split("=");
+    const value = rest.join("=").trim();
+    const cleanKey = key.trim().toLowerCase();
 
-    const processed = cleanWikitext(parseConvertTemplates(raw));
+    if (!value || INFOBOX_BLACKLIST.includes(cleanKey)) return null;
+
+    const processed = cleanWikitext(parseConvertTemplates(value));
     const answers = processed.split(/\n|\*\s*/).map(v => v.trim()).filter(Boolean);
 
     return {
-      label: titleCase(key),
+      label: titleCase(cleanKey),
       answers,
-      userInput: "",
-      revealed: false
+      revealed: false,
+      userInput: ""
     };
   }).filter(Boolean);
 
@@ -177,8 +179,8 @@ async function fetchCarData(title) {
 /* ================= RENDER ================= */
 
 function renderCar(car) {
-  carName.textContent = car.title;
-  carImage.src = car.image;
+  document.getElementById("car-name").textContent = car.title;
+  document.getElementById("car-image").src = car.image;
   currentRows = car.properties;
   renderTable();
 }
@@ -187,25 +189,31 @@ function renderTable() {
   const tbody = document.querySelector("#quiz-table tbody");
   tbody.innerHTML = "";
 
-  currentRows.forEach((r, i) => {
+  currentRows.forEach((row, i) => {
     const tr = document.createElement("tr");
 
-    tr.innerHTML = r.revealed
-      ? `<td>${r.label}</td>
-         <td>${r.answers.join("<br>")}</td>
-         <td>${r.userInput}</td>
-         <td>${bestScore(r.userInput, r.answers)}%</td>`
-      : `<td>${r.label}</td>
-         <td style="background:black;color:black;">████</td>
-         <td><input style="text-align:center" data-i="${i}"></td>
-         <td><button data-i="${i}">Check?</button></td>`;
+    if (row.revealed) {
+      tr.innerHTML = `
+        <td>${row.label}</td>
+        <td>${row.answers.join("<br>")}</td>
+        <td>${row.userInput}</td>
+        <td>${bestScore(row.userInput, row.answers)}%</td>
+      `;
+    } else {
+      tr.innerHTML = `
+        <td>${row.label}</td>
+        <td style="background:black;color:black;">████</td>
+        <td><input type="text" data-i="${i}"></td>
+        <td><button data-i="${i}">Check?</button></td>
+      `;
+    }
 
     tbody.appendChild(tr);
   });
 
-  tbody.querySelectorAll("button").forEach(b => {
-    b.onclick = () => {
-      const i = b.dataset.i;
+  tbody.querySelectorAll("button").forEach(btn => {
+    btn.onclick = () => {
+      const i = btn.dataset.i;
       const input = tbody.querySelector(`input[data-i="${i}"]`);
       currentRows[i].userInput = input.value;
       currentRows[i].revealed = true;
@@ -214,7 +222,7 @@ function renderTable() {
   });
 }
 
-/* ================= FUZZY SCORING ================= */
+/* ================= SCORING ================= */
 
 function levenshtein(a, b) {
   const m = [];
@@ -244,25 +252,17 @@ function bestScore(user, answers) {
   ));
 }
 
-/* ================= ACTIONS ================= */
-
-function revealAll() {
-  currentRows.forEach(r => r.revealed = true);
-  renderTable();
-}
+/* ================= INIT ================= */
 
 async function loadNewCar() {
   currentCarTitle = pickRandomTitle();
-  renderCar(await fetchCarData(currentCarTitle));
+  const car = await fetchCarData(currentCarTitle);
+  renderCar(car);
 }
-
-/* ================= INIT ================= */
 
 document.addEventListener("DOMContentLoaded", async () => {
   await loadCarList();
   await loadNewCar();
-
-  revealAllButton.onclick = revealAll;
   randomCarButton.onclick = loadNewCar;
   openInTabButton.onclick = () =>
     window.open("https://en.wikipedia.org/wiki/" + currentCarTitle, "_blank");
