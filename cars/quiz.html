@@ -3,252 +3,221 @@
 <head>
   <meta charset="UTF-8">
 
-  <!-- favicon -->
   <link rel="icon" href="favicon.png" type="image/x-icon">
 
-  <!-- font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Libertinus+Mono&display=swap" rel="stylesheet">
 
   <title>Car Quiz</title>
-
   <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-  <!-- navbar -->
-  <header class="navbar">
-    <a href="https://3deity.space" class="navbar-icon">
-      <img src="navbar-icon.png" alt="Home">
-    </a>
+<header class="navbar">
+  <a href="https://3deity.space" class="navbar-icon">
+    <img src="navbar-icon.png" alt="Home">
+  </a>
+  <nav class="navbar-links">
+    <a href="https://3deity.space">Home</a> |
+    <a href="about">About Me</a> |
+    <a href="links">My Links</a> |
+    <a href="stats">Statistics</a> |
+    <a href="blog">My Blog</a>
+  </nav>
+</header>
 
-    <nav class="navbar-links">
-      <a href="https://3deity.space">Home</a>
-      <span class="divider">|</span>
-      <a href="about">About Me</a>
-      <span class="divider">|</span>
-      <a href="links">My Links</a>
-      <span class="divider">|</span>
-      <a href="stats">Statistics</a>
-      <span class="divider">|</span>
-      <a href="blog">My Blog</a>
-    </nav>
-  </header>
+<div class="content-box">
+  <h1>Deity's Random Car Quiz</h1>
+  <hr>
 
-  <!-- main box -->
-  <div class="content-box">
-    <h1>Deity's Random Car Quiz</h1>
-    <hr>
-
-    <!-- car header -->
-    <div id="car-header" style="display:flex; align-items:center; gap:20px;">
-      <img id="car-image"
-        src="placeholder.png"
-        alt="Car image"
-        onerror="this.src='placeholder.png';"
-        style="width:200px; height:auto; border:2px solid black; border-radius:6px;">
-      <h2 id="car-name"></h2>
-    </div>
-
-    <br>
-
-    <!-- quiz table -->
-    <table id="quiz-table" style="width:100%; border-collapse:collapse;">
-      <thead>
-        <tr>
-          <th>Property</th>
-          <th>Value</th>
-          <th>Your Answer</th>
-          <th>Check</th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- rows injected by JS -->
-      </tbody>
-    </table>
-
-    <br>
-
-    <!-- buttons -->
-    <div class="button-container">
-      <button id="randomCarButton">New Car Model</button>
-      <button id="openInTabButton">➹ Wikipedia</button>
-    </div>
+  <div id="car-header" style="display:flex; gap:20px; align-items:center;">
+    <img id="car-image"
+         src="placeholder.png"
+         onerror="this.src='placeholder.png';"
+         style="width:200px; border:2px solid black; border-radius:6px;">
+    <h2 id="car-name"></h2>
   </div>
 
+  <br>
+
+  <table id="quiz-table" style="width:100%; border-collapse:collapse;">
+    <thead>
+      <tr>
+        <th>Property</th>
+        <th>Value</th>
+        <th>Your Answer</th>
+        <th>Check</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <br>
+
+  <div class="button-container">
+    <button id="randomCarButton">New Car Model</button>
+    <button id="openInTabButton">➹ Wikipedia</button>
+  </div>
+</div>
+
 <script>
-  let cachedCars = null;
-  let currentCarTitle = "";
-  let currentRows = [];
+let cachedCars = null;
+let currentCarTitle = "";
+let currentRows = [];
 
-  const INFOBOX_FIELDS = [
-    { key: "manufacturer", label: "Manufacturer" },
-    { key: "class", label: "Class" },
-    { key: "wheelbase", label: "Wheelbase" },
-    { key: "production", label: "Production" },
-    { key: "body_style", label: "Body Style" }
-  ];
-
-  async function loadCarList() {
-    if (!cachedCars) {
-      const res = await fetch("/data/car_models.json");
-      cachedCars = await res.json();
-    }
+async function loadCarList() {
+  if (!cachedCars) {
+    const res = await fetch("/data/car_models.json");
+    cachedCars = await res.json();
   }
-
-  function pickRandomTitle() {
-    const random =
-      cachedCars[Math.floor(Math.random() * cachedCars.length)];
-    return random.replace(/ /g, "_");
-  }
-  async function fetchCarImage(title) {
-  const url =
-    "https://en.wikipedia.org/w/api.php" +
-    "?origin=*" +
-    "&action=query" +
-    "&titles=" + encodeURIComponent(title) +
-    "&prop=pageimages" +
-    "&pithumbsize=400" +
-    "&format=json";
-
-  const res = await fetch(url);
-  const data = await res.json();
-
-  const pages = data.query.pages;
-  const page = pages[Object.keys(pages)[0]];
-
-  if (page.thumbnail && page.thumbnail.source) {
-    return page.thumbnail.source;
-  }
-
-  return "placeholder.png";
 }
-  async function fetchCarData(title) {
+
+function pickRandomTitle() {
+  return cachedCars[Math.floor(Math.random() * cachedCars.length)]
+    .replace(/ /g, "_");
+}
+
+async function fetchCarImage(title) {
   const url =
-    "https://en.wikipedia.org/w/api.php" +
-    "?origin=*" +
-    "&action=parse" +
-    "&page=" + encodeURIComponent(title) +
-    "&prop=wikitext" +
-    "&format=json";
+    "https://en.wikipedia.org/w/api.php?origin=*&action=query" +
+    "&titles=" + encodeURIComponent(title) +
+    "&prop=pageimages&pithumbsize=400&format=json";
 
   const res = await fetch(url);
   const data = await res.json();
+  const page = data.query.pages[Object.keys(data.query.pages)[0]];
 
+  return page.thumbnail?.source || "placeholder.png";
+}
+
+async function fetchCarData(title) {
+  const res = await fetch(
+    "https://en.wikipedia.org/w/api.php?origin=*&action=parse" +
+    "&page=" + encodeURIComponent(title) +
+    "&prop=wikitext&format=json"
+  );
+
+  const data = await res.json();
   const wikitext = data.parse.wikitext["*"];
   const image = await fetchCarImage(title);
 
-  const properties = INFOBOX_FIELDS.map(field => {
-    const regex = new RegExp(
-      "\\|\\s*" + field.key + "\\s*=\\s*(.+)"
-    );
-    const match = wikitext.match(regex);
-    return {
-      label: field.label,
-      value: match ? cleanValue(match[1]) : "Unknown",
-      userInput: "",
-      revealed: false
-    };
+  const infoboxMatch = wikitext.match(/\{\{Infobox automobile([\s\S]*?)\n\}\}/i);
+  if (!infoboxMatch) return null;
+
+  const infobox = infoboxMatch[1];
+  const rows = [];
+
+  infobox.split("\n").forEach(line => {
+    if (!line.startsWith("|")) return;
+
+    const [rawKey, ...rest] = line.slice(1).split("=");
+    if (!rawKey || rest.length === 0) return;
+
+    const key = rawKey.trim();
+    let value = rest.join("=").trim();
+    value = cleanValue(value);
+
+    if (!value || value.toLowerCase() === "unknown") return;
+
+    const parts = value.split(/\*\s*/).filter(Boolean);
+
+    parts.forEach((part, i) => {
+      rows.push({
+        label: formatLabel(key) + (parts.length > 1 ? ` (${i + 1})` : ""),
+        value: part.trim(),
+        userInput: "",
+        revealed: false
+      });
+    });
   });
 
   return {
     title: title.replace(/_/g, " "),
     image,
-    properties
+    properties: rows
   };
 }
 
-  function cleanValue(value) {
-    return value
-      .replace(/<ref.*?>.*?<\/ref>/g, "")
-      .replace(/\[\[|\]\]/g, "")
-      .replace(/\n/g, " ")
-      .trim();
-  }
+function cleanValue(value) {
+  return value
+    .replace(/<ref.*?>.*?<\/ref>/g, "")
+    .replace(/\[\[|\]\]/g, "")
+    .replace(/\n/g, " ")
+    .trim();
+}
 
-  function renderCar(car) {
-    document.getElementById("car-name").textContent = car.title;
-    document.getElementById("car-image").src = car.image;
+function formatLabel(key) {
+  return key
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
 
-    currentRows = car.properties;
-    renderTable();
-  }
+function renderCar(car) {
+  document.getElementById("car-name").textContent = car.title;
+  document.getElementById("car-image").src = car.image;
+  currentRows = car.properties;
+  renderTable();
+}
 
-  function renderTable() {
-    const tbody = document.querySelector("#quiz-table tbody");
-    tbody.innerHTML = "";
+function renderTable() {
+  const tbody = document.querySelector("#quiz-table tbody");
+  tbody.innerHTML = "";
 
-    currentRows.forEach((row, index) => {
-      const tr = document.createElement("tr");
+  currentRows.forEach((row, i) => {
+    const tr = document.createElement("tr");
 
-      tr.innerHTML = row.revealed
-        ? `
-          <td>${row.label}</td>
-          <td>${row.value}</td>
-          <td>${row.userInput}</td>
-          <td>${score(row.userInput, row.value)}%</td>
-        `
-        : `
-          <td>${row.label}</td>
-          <td style="background:black; color:black;">████</td>
-          <td><input type="text" data-index="${index}"></td>
-          <td><button data-index="${index}">Check?</button></td>
-        `;
+    tr.innerHTML = row.revealed
+      ? `<td>${row.label}</td>
+         <td>${row.value}</td>
+         <td>${row.userInput}</td>
+         <td>${score(row.userInput, row.value)}%</td>`
+      : `<td>${row.label}</td>
+         <td style="background:black;color:black;">████</td>
+         <td><input data-i="${i}"></td>
+         <td><button data-i="${i}">Check?</button></td>`;
 
-      tbody.appendChild(tr);
-    });
-
-    tbody.querySelectorAll("button").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const i = btn.dataset.index;
-        const input =
-          tbody.querySelector(`input[data-index="${i}"]`);
-        currentRows[i].userInput = input.value;
-        currentRows[i].revealed = true;
-        renderTable();
-      });
-    });
-  }
-
-  function score(user, actual) {
-    user = user.toLowerCase();
-    actual = actual.toLowerCase();
-
-    if (!user) return 0;
-    if (user === actual) return 100;
-    if (actual.includes(user) || user.includes(actual)) return 70;
-    return 30;
-  }
-
-  async function loadNewCar() {
-    const title = pickRandomTitle();
-    currentCarTitle = title;
-    const car = await fetchCarData(title);
-    renderCar(car);
-  }
-
-  function openCurrentCarInNewTab() {
-    if (!currentCarTitle) return;
-    window.open(
-      "https://en.wikipedia.org/wiki/" + currentCarTitle,
-      "_blank"
-    );
-  }
-
-  document.addEventListener("DOMContentLoaded", async () => {
-    await loadCarList();
-    await loadNewCar();
-
-    document
-      .getElementById("randomCarButton")
-      .addEventListener("click", loadNewCar);
-
-    document
-      .getElementById("openInTabButton")
-      .addEventListener("click", openCurrentCarInNewTab);
+    tbody.appendChild(tr);
   });
+
+  tbody.querySelectorAll("button").forEach(btn => {
+    btn.onclick = () => {
+      const i = btn.dataset.i;
+      const input = tbody.querySelector(`input[data-i="${i}"]`);
+      currentRows[i].userInput = input.value;
+      currentRows[i].revealed = true;
+      renderTable();
+    };
+  });
+}
+
+function score(user, actual) {
+  user = user.toLowerCase();
+  actual = actual.toLowerCase();
+  if (!user) return 0;
+  if (user === actual) return 100;
+  if (actual.includes(user) || user.includes(actual)) return 70;
+  return 30;
+}
+
+async function loadNewCar() {
+  const title = pickRandomTitle();
+  currentCarTitle = title;
+  const car = await fetchCarData(title);
+  if (car) renderCar(car);
+}
+
+function openCurrentCarInNewTab() {
+  window.open("https://en.wikipedia.org/wiki/" + currentCarTitle, "_blank");
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadCarList();
+  await loadNewCar();
+  randomCarButton.onclick = loadNewCar;
+  openInTabButton.onclick = openCurrentCarInNewTab;
+});
 </script>
 
 </body>
