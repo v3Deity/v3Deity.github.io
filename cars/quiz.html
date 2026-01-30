@@ -32,7 +32,7 @@
   <h1>Deity's Random Car Quiz</h1>
   <hr>
 
-  <div id="car-header" style="display:flex; align-items:center; gap:20px;">
+  <div id="car-header" style="display:flex; align-items:center; gap:20px; justify-content:center;">
     <img id="car-image"
       src="placeholder.png"
       onerror="this.src='placeholder.png';"
@@ -42,7 +42,7 @@
 
   <br>
 
-  <table id="quiz-table" style="width:100%; border-collapse:collapse;">
+  <table id="quiz-table" style="width:100%; border-collapse:collapse; text-align:center;">
     <thead>
       <tr>
         <th>Property</th>
@@ -54,9 +54,10 @@
     <tbody></tbody>
   </table>
 
-  <br>
+  <hr>
 
-  <div class="button-container">
+  <div class="button-container" style="text-align:center;">
+    <button id="revealAllButton">Reveal All</button>
     <button id="randomCarButton">New Car Model</button>
     <button id="openInTabButton">➹ Wikipedia</button>
   </div>
@@ -97,22 +98,21 @@ function cleanWikitext(text) {
 /* === {{convert}} handling === */
 function parseConvertTemplates(text) {
   return text.replace(/\{\{convert\|([^}]+)\}\}/g, (_, args) => {
-    const parts = args.split("|");
-    const value = parseFloat(parts[0]);
-    const from = parts[1];
-    const to = parts[2];
-    const decimals = parseInt(parts[3] || 0);
+    const p = args.split("|");
+    const v = parseFloat(p[0]);
+    const from = p[1];
+    const to = p[2];
+    const d = parseInt(p[3] || 0);
 
-    const conversions = {
-      in: { mm: v => v * 25.4 },
-      lb: { kg: v => v * 0.453592 },
-      bhp: { kW: v => v * 0.7457 }
+    const map = {
+      in: { mm: x => x * 25.4 },
+      lb: { kg: x => x * 0.453592 },
+      bhp: { kW: x => x * 0.7457 }
     };
 
-    if (!conversions[from] || !conversions[from][to]) return parts[0];
+    if (!map[from] || !map[from][to]) return p[0];
 
-    const converted = conversions[from][to](value);
-    return `${value.toLocaleString()} ${from} (${converted.toLocaleString(undefined,{maximumFractionDigits:decimals})} ${to})`;
+    return `${v.toLocaleString()} ${from} (${map[from][to](v).toLocaleString(undefined,{maximumFractionDigits:d})} ${to})`;
   });
 }
 
@@ -145,26 +145,25 @@ async function fetchCarData(title) {
   const data = await res.json();
   const wikitext = data.parse.wikitext["*"];
 
-  const infobox = wikitext.match(/\{\{Infobox automobile([\s\S]*?)\n\}\}/);
-  if (!infobox) return null;
+  const box = wikitext.match(/\{\{Infobox automobile([\s\S]*?)\n\}\}/);
+  if (!box) return null;
 
-  const lines = infobox[1].split("\n").filter(l => l.startsWith("|"));
+  const rows = box[1].split("\n").filter(l => l.startsWith("|"));
 
-  const properties = lines.map(line => {
-    const [key, ...rest] = line.slice(1).split("=");
-    const value = rest.join("=").trim();
-    const cleanKey = key.trim().toLowerCase();
+  const properties = rows.map(l => {
+    const [k, ...r] = l.slice(1).split("=");
+    const key = k.trim().toLowerCase();
+    const raw = r.join("=").trim();
+    if (!raw || INFOBOX_BLACKLIST.includes(key)) return null;
 
-    if (!value || INFOBOX_BLACKLIST.includes(cleanKey)) return null;
-
-    const processed = cleanWikitext(parseConvertTemplates(value));
+    const processed = cleanWikitext(parseConvertTemplates(raw));
     const answers = processed.split(/\n|\*\s*/).map(v => v.trim()).filter(Boolean);
 
     return {
-      label: titleCase(cleanKey),
+      label: titleCase(key),
       answers,
-      revealed: false,
-      userInput: ""
+      userInput: "",
+      revealed: false
     };
   }).filter(Boolean);
 
@@ -178,8 +177,8 @@ async function fetchCarData(title) {
 /* ================= RENDER ================= */
 
 function renderCar(car) {
-  document.getElementById("car-name").textContent = car.title;
-  document.getElementById("car-image").src = car.image;
+  carName.textContent = car.title;
+  carImage.src = car.image;
   currentRows = car.properties;
   renderTable();
 }
@@ -188,31 +187,25 @@ function renderTable() {
   const tbody = document.querySelector("#quiz-table tbody");
   tbody.innerHTML = "";
 
-  currentRows.forEach((row, i) => {
+  currentRows.forEach((r, i) => {
     const tr = document.createElement("tr");
 
-    if (row.revealed) {
-      tr.innerHTML = `
-        <td>${row.label}</td>
-        <td>${row.answers.join("<br>")}</td>
-        <td>${row.userInput}</td>
-        <td>${bestScore(row.userInput, row.answers)}%</td>
-      `;
-    } else {
-      tr.innerHTML = `
-        <td>${row.label}</td>
-        <td style="background:black;color:black;">████</td>
-        <td><input type="text" data-i="${i}"></td>
-        <td><button data-i="${i}">Check?</button></td>
-      `;
-    }
+    tr.innerHTML = r.revealed
+      ? `<td>${r.label}</td>
+         <td>${r.answers.join("<br>")}</td>
+         <td>${r.userInput}</td>
+         <td>${bestScore(r.userInput, r.answers)}%</td>`
+      : `<td>${r.label}</td>
+         <td style="background:black;color:black;">████</td>
+         <td><input style="text-align:center" data-i="${i}"></td>
+         <td><button data-i="${i}">Check?</button></td>`;
 
     tbody.appendChild(tr);
   });
 
-  tbody.querySelectorAll("button").forEach(btn => {
-    btn.onclick = () => {
-      const i = btn.dataset.i;
+  tbody.querySelectorAll("button").forEach(b => {
+    b.onclick = () => {
+      const i = b.dataset.i;
       const input = tbody.querySelector(`input[data-i="${i}"]`);
       currentRows[i].userInput = input.value;
       currentRows[i].revealed = true;
@@ -221,32 +214,55 @@ function renderTable() {
   });
 }
 
-/* ================= SCORING ================= */
+/* ================= FUZZY SCORING ================= */
 
-function score(user, actual) {
-  user = user.toLowerCase();
-  actual = actual.toLowerCase();
-  if (!user) return 0;
-  if (user === actual) return 100;
-  if (actual.includes(user) || user.includes(actual)) return 70;
-  return 30;
+function levenshtein(a, b) {
+  const m = [];
+  for (let i = 0; i <= b.length; i++) m[i] = [i];
+  for (let j = 0; j <= a.length; j++) m[0][j] = j;
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      m[i][j] = b[i - 1] === a[j - 1]
+        ? m[i - 1][j - 1]
+        : Math.min(m[i - 1][j - 1] + 1, m[i][j - 1] + 1, m[i - 1][j] + 1);
+    }
+  }
+  return m[b.length][a.length];
+}
+
+function similarity(a, b) {
+  const dist = levenshtein(a, b);
+  return Math.max(0, 1 - dist / Math.max(a.length, b.length));
 }
 
 function bestScore(user, answers) {
-  return Math.max(...answers.map(a => score(user, a)));
+  if (!user) return 0;
+  user = user.toLowerCase();
+  return Math.max(...answers.map(a =>
+    Math.round(similarity(user, a.toLowerCase()) * 100)
+  ));
+}
+
+/* ================= ACTIONS ================= */
+
+function revealAll() {
+  currentRows.forEach(r => r.revealed = true);
+  renderTable();
+}
+
+async function loadNewCar() {
+  currentCarTitle = pickRandomTitle();
+  renderCar(await fetchCarData(currentCarTitle));
 }
 
 /* ================= INIT ================= */
 
-async function loadNewCar() {
-  currentCarTitle = pickRandomTitle();
-  const car = await fetchCarData(currentCarTitle);
-  renderCar(car);
-}
-
 document.addEventListener("DOMContentLoaded", async () => {
   await loadCarList();
   await loadNewCar();
+
+  revealAllButton.onclick = revealAll;
   randomCarButton.onclick = loadNewCar;
   openInTabButton.onclick = () =>
     window.open("https://en.wikipedia.org/wiki/" + currentCarTitle, "_blank");
