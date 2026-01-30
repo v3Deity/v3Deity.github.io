@@ -45,9 +45,10 @@
     <!-- car header -->
     <div id="car-header" style="display:flex; align-items:center; gap:20px;">
       <img id="car-image"
-           src="placeholder.png"
-           alt="Car image"
-           style="width:200px; height:auto; border:2px solid black; border-radius:6px;">
+        src="placeholder.png"
+        alt="Car image"
+        onerror="this.src='placeholder.png';"
+        style="width:200px; height:auto; border:2px solid black; border-radius:6px;">
       <h2 id="car-name"></h2>
     </div>
 
@@ -109,19 +110,19 @@
       "?origin=*" +
       "&action=parse" +
       "&page=" + encodeURIComponent(title) +
-      "&prop=wikitext|images" +
+      "&prop=wikitext|pageimages&pithumbsize=400" +
       "&format=json";
 
     const res = await fetch(url);
     const data = await res.json();
 
     const wikitext = data.parse.wikitext["*"];
-    const images = data.parse.images || [];
+    let image = "placeholder.png";
 
-    const image =
-      images.length
-        ? "https://upload.wikimedia.org/wikipedia/commons/" + images[0]
-        : "placeholder.png";
+    if (data.parse.pageimages && data.parse.pageimages.thumbnail) {
+      image = data.parse.pageimages.thumbnail.source;
+    }
+  
 
     const properties = INFOBOX_FIELDS.map(field => {
       const regex = new RegExp(
