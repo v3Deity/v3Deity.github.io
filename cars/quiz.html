@@ -57,7 +57,7 @@
   <hr>
 
   <div class="button-container">
-    <button id="revealAllButton">Reveal All</button>
+    <button id="checkAllButton">Check All</button>
     <button id="randomCarButton">New Car Model</button>
     <button id="openInTabButton">➹ Wikipedia</button>
   </div>
@@ -251,6 +251,24 @@ function bestScore(user, answers) {
     Math.round(similarity(user, a.toLowerCase()) * 100)
   ));
 }
+
+/* ================= CHECK ALL ================= */
+
+function checkAllRows() {
+  const tbody = document.querySelector("#quiz-table tbody");
+
+  tbody.querySelectorAll("input").forEach(input => {
+    const i = input.dataset.i;
+    currentRows[i].userInput = input.value;
+    currentRows[i].revealed = true;
+  });
+
+  renderTable();
+}
+
+// attach to the button
+const checkAllButton = document.getElementById("checkAllButton");
+checkAllButton.onclick = checkAllRows;
 
 /* ================= INIT ================= */
 
