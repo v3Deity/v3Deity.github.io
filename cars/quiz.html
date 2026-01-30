@@ -32,11 +32,11 @@
   <h1>Deity's Random Car Quiz</h1>
   <hr>
 
-  <div id="car-header" style="display:flex; gap:20px; align-items:center;">
+  <div id="car-header" style="display:flex; align-items:center; gap:20px;">
     <img id="car-image"
-         src="placeholder.png"
-         onerror="this.src='placeholder.png';"
-         style="width:200px; border:2px solid black; border-radius:6px;">
+      src="placeholder.png"
+      onerror="this.src='placeholder.png';"
+      style="width:200px; border:2px solid black; border-radius:6px;">
     <h2 id="car-name"></h2>
   </div>
 
@@ -63,9 +63,60 @@
 </div>
 
 <script>
+/* ================= CONFIG ================= */
+
+const INFOBOX_BLACKLIST = [
+  "image",
+  "caption",
+  "name",
+  "sp",
+  "logo",
+  "flag"
+];
+
+/* ================= STATE ================= */
+
 let cachedCars = null;
 let currentCarTitle = "";
 let currentRows = [];
+
+/* ================= UTILS ================= */
+
+function titleCase(str) {
+  return str.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function cleanWikitext(text) {
+  return text
+    .replace(/<ref.*?>.*?<\/ref>/g, "")
+    .replace(/\[\[([^|\]]+\|)?([^\]]+)\]\]/g, "$2")
+    .replace(/'''?/g, "")
+    .trim();
+}
+
+/* === {{convert}} handling === */
+function parseConvertTemplates(text) {
+  return text.replace(/\{\{convert\|([^}]+)\}\}/g, (_, args) => {
+    const parts = args.split("|");
+    const value = parseFloat(parts[0]);
+    const from = parts[1];
+    const to = parts[2];
+    const decimals = parseInt(parts[3] || 0);
+
+    const conversions = {
+      in: { mm: v => v * 25.4 },
+      lb: { kg: v => v * 0.453592 },
+      bhp: { kW: v => v * 0.7457 }
+    };
+
+    if (!conversions[from] || !conversions[from][to]) return parts[0];
+
+    const converted = conversions[from][to](value);
+    return `${value.toLocaleString()} ${from} (${converted.toLocaleString(undefined,{maximumFractionDigits:decimals})} ${to})`;
+  });
+}
+
+/* ================= DATA ================= */
 
 async function loadCarList() {
   if (!cachedCars) {
@@ -75,84 +126,56 @@ async function loadCarList() {
 }
 
 function pickRandomTitle() {
-  return cachedCars[Math.floor(Math.random() * cachedCars.length)]
-    .replace(/ /g, "_");
+  return cachedCars[Math.floor(Math.random() * cachedCars.length)].replace(/ /g, "_");
 }
 
 async function fetchCarImage(title) {
-  const url =
-    "https://en.wikipedia.org/w/api.php?origin=*&action=query" +
-    "&titles=" + encodeURIComponent(title) +
-    "&prop=pageimages&pithumbsize=400&format=json";
-
-  const res = await fetch(url);
+  const res = await fetch(
+    `https://en.wikipedia.org/w/api.php?origin=*&action=query&titles=${encodeURIComponent(title)}&prop=pageimages&pithumbsize=400&format=json`
+  );
   const data = await res.json();
   const page = data.query.pages[Object.keys(data.query.pages)[0]];
-
   return page.thumbnail?.source || "placeholder.png";
 }
 
 async function fetchCarData(title) {
   const res = await fetch(
-    "https://en.wikipedia.org/w/api.php?origin=*&action=parse" +
-    "&page=" + encodeURIComponent(title) +
-    "&prop=wikitext&format=json"
+    `https://en.wikipedia.org/w/api.php?origin=*&action=parse&page=${encodeURIComponent(title)}&prop=wikitext&format=json`
   );
-
   const data = await res.json();
   const wikitext = data.parse.wikitext["*"];
-  const image = await fetchCarImage(title);
 
-  const infoboxMatch = wikitext.match(/\{\{Infobox automobile([\s\S]*?)\n\}\}/i);
-  if (!infoboxMatch) return null;
+  const infobox = wikitext.match(/\{\{Infobox automobile([\s\S]*?)\n\}\}/);
+  if (!infobox) return null;
 
-  const infobox = infoboxMatch[1];
-  const rows = [];
+  const lines = infobox[1].split("\n").filter(l => l.startsWith("|"));
 
-  infobox.split("\n").forEach(line => {
-    if (!line.startsWith("|")) return;
+  const properties = lines.map(line => {
+    const [key, ...rest] = line.slice(1).split("=");
+    const value = rest.join("=").trim();
+    const cleanKey = key.trim().toLowerCase();
 
-    const [rawKey, ...rest] = line.slice(1).split("=");
-    if (!rawKey || rest.length === 0) return;
+    if (!value || INFOBOX_BLACKLIST.includes(cleanKey)) return null;
 
-    const key = rawKey.trim();
-    let value = rest.join("=").trim();
-    value = cleanValue(value);
+    const processed = cleanWikitext(parseConvertTemplates(value));
+    const answers = processed.split(/\n|\*\s*/).map(v => v.trim()).filter(Boolean);
 
-    if (!value || value.toLowerCase() === "unknown") return;
-
-    const parts = value.split(/\*\s*/).filter(Boolean);
-
-    parts.forEach((part, i) => {
-      rows.push({
-        label: formatLabel(key) + (parts.length > 1 ? ` (${i + 1})` : ""),
-        value: part.trim(),
-        userInput: "",
-        revealed: false
-      });
-    });
-  });
+    return {
+      label: titleCase(cleanKey),
+      answers,
+      revealed: false,
+      userInput: ""
+    };
+  }).filter(Boolean);
 
   return {
     title: title.replace(/_/g, " "),
-    image,
-    properties: rows
+    image: await fetchCarImage(title),
+    properties
   };
 }
 
-function cleanValue(value) {
-  return value
-    .replace(/<ref.*?>.*?<\/ref>/g, "")
-    .replace(/\[\[|\]\]/g, "")
-    .replace(/\n/g, " ")
-    .trim();
-}
-
-function formatLabel(key) {
-  return key
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
+/* ================= RENDER ================= */
 
 function renderCar(car) {
   document.getElementById("car-name").textContent = car.title;
@@ -168,15 +191,21 @@ function renderTable() {
   currentRows.forEach((row, i) => {
     const tr = document.createElement("tr");
 
-    tr.innerHTML = row.revealed
-      ? `<td>${row.label}</td>
-         <td>${row.value}</td>
-         <td>${row.userInput}</td>
-         <td>${score(row.userInput, row.value)}%</td>`
-      : `<td>${row.label}</td>
-         <td style="background:black;color:black;">████</td>
-         <td><input data-i="${i}"></td>
-         <td><button data-i="${i}">Check?</button></td>`;
+    if (row.revealed) {
+      tr.innerHTML = `
+        <td>${row.label}</td>
+        <td>${row.answers.join("<br>")}</td>
+        <td>${row.userInput}</td>
+        <td>${bestScore(row.userInput, row.answers)}%</td>
+      `;
+    } else {
+      tr.innerHTML = `
+        <td>${row.label}</td>
+        <td style="background:black;color:black;">████</td>
+        <td><input type="text" data-i="${i}"></td>
+        <td><button data-i="${i}">Check?</button></td>
+      `;
+    }
 
     tbody.appendChild(tr);
   });
@@ -192,6 +221,8 @@ function renderTable() {
   });
 }
 
+/* ================= SCORING ================= */
+
 function score(user, actual) {
   user = user.toLowerCase();
   actual = actual.toLowerCase();
@@ -201,22 +232,24 @@ function score(user, actual) {
   return 30;
 }
 
-async function loadNewCar() {
-  const title = pickRandomTitle();
-  currentCarTitle = title;
-  const car = await fetchCarData(title);
-  if (car) renderCar(car);
+function bestScore(user, answers) {
+  return Math.max(...answers.map(a => score(user, a)));
 }
 
-function openCurrentCarInNewTab() {
-  window.open("https://en.wikipedia.org/wiki/" + currentCarTitle, "_blank");
+/* ================= INIT ================= */
+
+async function loadNewCar() {
+  currentCarTitle = pickRandomTitle();
+  const car = await fetchCarData(currentCarTitle);
+  renderCar(car);
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
   await loadCarList();
   await loadNewCar();
   randomCarButton.onclick = loadNewCar;
-  openInTabButton.onclick = openCurrentCarInNewTab;
+  openInTabButton.onclick = () =>
+    window.open("https://en.wikipedia.org/wiki/" + currentCarTitle, "_blank");
 });
 </script>
 
