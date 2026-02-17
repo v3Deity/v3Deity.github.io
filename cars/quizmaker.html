@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
 
+  <!-- favicon -->
   <link rel="icon" href="favicon.png" type="image/x-icon">
 
+  <!-- font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Libertinus+Mono&display=swap" rel="stylesheet">
@@ -13,37 +15,26 @@
   <link rel="stylesheet" href="style.css">
 
   <style>
-    /* inputs */
-    input {
-      font-family: "Libertinus Mono", monospace;
-      background-color: #121214;
-      color: whitesmoke;
-      border: 2px solid black;
-      padding: 6px;
-      border-radius: 6px;
-    }
-
-    input::placeholder {
-      color: #aaa;
-    }
-
-    /* search row */
     .search-row {
       display: flex;
-      gap: 6px;
-      margin-bottom: 6px;
+      gap: 8px;
+      margin-bottom: 10px;
     }
 
-    /* dropdown */
+    #searchBox {
+      flex: 1;
+      font-family: inherit;
+    }
+
     #dropdown {
-      position: absolute;
-      background-color: #1f1f22;
-      border: 2px solid black;
-      width: 100%;
+      border: 1px solid #aaa;
       max-height: 150px;
       overflow-y: auto;
       display: none;
-      z-index: 10;
+      background: white;
+      position: absolute;
+      width: calc(100% - 20px);
+      z-index: 5;
     }
 
     #dropdown div {
@@ -52,123 +43,123 @@
     }
 
     #dropdown div:hover {
-      background-color: #2b2b30;
+      background: #eee;
     }
 
-    /* table */
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
-      font-size: 0.9rem;
     }
 
     th, td {
-      border: 2px solid black;
+      border: 1px solid #aaa;
       padding: 4px 6px;
-    }
-
-    th {
-      background-color: #121214;
-    }
-
-    .button-container {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-bottom: 10px;
+      text-align: left;
     }
   </style>
 </head>
 
 <body>
 
-<header class="navbar">
-  <a href="https://3deity.space" class="navbar-icon">
-    <img src="navbar-icon.png" alt="Home">
-  </a>
-
-  <nav class="navbar-links">
-    <a href="https://3deity.space">Home</a>
-    <span class="divider">|</span>
-    <a href="about">About Me</a>
-    <span class="divider">|</span>
-    <a href="links">My Links</a>
-    <span class="divider">|</span>
-    <a href="stats">Statistics</a>
-    <span class="divider">|</span>
-    <a href="blog">My Blog</a>
-  </nav>
-</header>
-
-<div class="content-box">
-  <h1>Deity's Car Quiz Maker</h1>
-  <hr>
-
-  <div class="button-container">
-    <button id="downloadQuizButton">Download Quiz</button>
-    <button id="copyQuizButton">Copy Quiz JSON</button>
-    <a href="https://3deity.space/cars/quiz">
-      <button>Back to Quiz</button>
+  <!--navbar-->
+  <header class="navbar">
+    <a href="https://3deity.space" class="navbar-icon">
+      <img src="navbar-icon.png" alt="Home">
     </a>
-  </div>
 
-  <hr>
+    <nav class="navbar-links">
+      <a href="https://3deity.space">Home</a>
+      <span class="divider">|</span>
+      <a href="about">About Me</a>
+      <span class="divider">|</span>
+      <a href="links">My Links</a>
+      <span class="divider">|</span>
+      <a href="stats">Statistics</a>
+      <span class="divider">|</span>
+      <a href="blog">My Blog</a>
+    </nav>
+  </header>
 
-  <div style="position:relative;">
-    <div class="search-row">
-      <input id="searchBox" placeholder="Search car brand or model...">
-      <div class="button-container">
-        <button id="addAllBtn">Add All</button>
-        <button id="excludeAllBtn">Exclude All</button>
-      </div>
+  <div class="content-box">
+    <h1>Deity's Car Quiz Maker</h1>
+    <hr>
+
+    <div class="button-container">
+      <button id="downloadQuizButton">Download Quiz</button>
+      <button id="copyQuizButton">Copy Quiz JSON</button>
+      <a href="https://3deity.space/cars/quiz">
+        <button>Back to Quiz</button>
+      </a>
     </div>
-    <div id="dropdown"></div>
+
+    <hr>
+
+    <!-- Search -->
+    <div style="position: relative;">
+      <div class="search-row">
+        <input id="searchBox" placeholder="Search car brand or model...">
+        <div class="button-container">
+          <button id="addAllBtn">Add All</button>
+          <button id="excludeAllBtn">Exclude All</button>
+        </div>
+      </div>
+      <div id="dropdown"></div>
+    </div>
+
+    <p>
+      Showing
+      <input id="showCount" value="10" style="width:50px">
+      /
+      <span id="totalCount">0</span>
+      results
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Car</th>
+        </tr>
+      </thead>
+      <tbody id="carTable"></tbody>
+    </table>
   </div>
-
-  <p>
-    Showing
-    <input id="showCount" value="10" style="width:60px">
-    /
-    <span id="totalCount">0</span>
-    results
-  </p>
-
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Car</th>
-      </tr>
-    </thead>
-    <tbody id="carTable"></tbody>
-  </table>
-</div>
 
 <script>
-const CAR_LIST_URL = "cars.json";
+/* ================= CONFIG ================= */
+const CAR_LIST_URL = "/data/car_models.json"; // ← change ONLY if needed
 const DEFAULT_SHOW = 10;
 
+/* ================= STATE ================= */
 let allCars = [];
 let selectedCars = [];
 let showLimit = DEFAULT_SHOW;
 
+/* ================= LOAD DATA ================= */
 fetch(CAR_LIST_URL)
   .then(r => r.json())
   .then(data => {
     allCars = data.sort();
+    renderDropdown();
     updateTable();
   });
 
+/* ================= SEARCH ================= */
 const searchBox = document.getElementById("searchBox");
 const dropdown = document.getElementById("dropdown");
 
-searchBox.addEventListener("input", () => {
-  const val = searchBox.value.toLowerCase();
-  dropdown.innerHTML = "";
-  if (!val) return dropdown.style.display = "none";
+searchBox.addEventListener("input", renderDropdown);
 
-  const matches = allCars.filter(c => c.toLowerCase().startsWith(val));
+function renderDropdown() {
+  const value = searchBox.value.toLowerCase();
+  dropdown.innerHTML = "";
+  if (!value) {
+    dropdown.style.display = "none";
+    return;
+  }
+
+  const matches = allCars.filter(c => c.toLowerCase().startsWith(value));
   matches.forEach(car => {
     const div = document.createElement("div");
     div.textContent = car;
@@ -180,16 +171,22 @@ searchBox.addEventListener("input", () => {
   });
 
   dropdown.style.display = matches.length ? "block" : "none";
-});
+}
 
+/* ================= ADD / EXCLUDE ================= */
 document.getElementById("addAllBtn").onclick = () => {
   const val = searchBox.value.toLowerCase();
-  addCars(val ? allCars.filter(c => c.toLowerCase().startsWith(val)) : allCars);
+  const cars = val
+    ? allCars.filter(c => c.toLowerCase().startsWith(val))
+    : allCars;
+  addCars(cars);
 };
 
 document.getElementById("excludeAllBtn").onclick = () => {
   const val = searchBox.value.toLowerCase();
-  selectedCars = selectedCars.filter(c => !c.toLowerCase().startsWith(val));
+  selectedCars = selectedCars.filter(
+    c => !c.toLowerCase().startsWith(val)
+  );
   updateTable();
 };
 
@@ -201,9 +198,11 @@ function addCars(cars) {
   updateTable();
 }
 
+/* ================= TABLE ================= */
 function updateTable() {
   const tbody = document.getElementById("carTable");
   tbody.innerHTML = "";
+
   document.getElementById("totalCount").textContent = selectedCars.length;
 
   selectedCars.slice(0, showLimit).forEach((car, i) => {
@@ -213,24 +212,28 @@ function updateTable() {
   });
 }
 
-document.getElementById("showCount").addEventListener("keydown", e => {
+/* ================= SHOW LIMIT ================= */
+const showInput = document.getElementById("showCount");
+showInput.addEventListener("keydown", e => {
   if (e.key === "Enter") {
-    const n = parseInt(e.target.value);
+    const n = parseInt(showInput.value);
     showLimit = isNaN(n) || n <= 0 ? DEFAULT_SHOW : n;
-    e.target.value = showLimit;
+    showInput.value = showLimit;
     updateTable();
   }
 });
 
-function exportJSON() {
+/* ================= EXPORT ================= */
+function getQuizJSON() {
   return JSON.stringify(selectedCars, null, 2);
 }
 
-document.getElementById("copyQuizButton").onclick = () =>
-  navigator.clipboard.writeText(exportJSON());
+document.getElementById("copyQuizButton").onclick = () => {
+  navigator.clipboard.writeText(getQuizJSON());
+};
 
 document.getElementById("downloadQuizButton").onclick = () => {
-  const blob = new Blob([exportJSON()], { type: "application/json" });
+  const blob = new Blob([getQuizJSON()], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "car_quiz.json";
