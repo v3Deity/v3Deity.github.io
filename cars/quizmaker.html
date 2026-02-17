@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <!-- favicon -->
+  <link rel="icon" href="favicon.png" type="image/x-icon">
+
+  <!-- font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Libertinus+Mono&display=swap" rel="stylesheet">
+
+  <title>Car Quiz Maker</title>
+  <link rel="stylesheet" href="style.css">
+
+  <style>
+    .search-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    #searchBox {
+      flex: 1;
+      font-family: inherit;
+    }
+
+    #dropdown {
+      border: 1px solid #aaa;
+      max-height: 150px;
+      overflow-y: auto;
+      display: none;
+      background: white;
+      position: absolute;
+      width: calc(100% - 20px);
+      z-index: 5;
+    }
+
+    #dropdown div {
+      padding: 4px 6px;
+      cursor: pointer;
+    }
+
+    #dropdown div:hover {
+      background: #eee;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      border: 1px solid #aaa;
+      padding: 4px 6px;
+      text-align: left;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!--navbar-->
+  <header class="navbar">
+    <a href="https://3deity.space" class="navbar-icon">
+      <img src="navbar-icon.png" alt="Home">
+    </a>
+
+    <nav class="navbar-links">
+      <a href="https://3deity.space">Home</a>
+      <span class="divider">|</span>
+      <a href="about">About Me</a>
+      <span class="divider">|</span>
+      <a href="links">My Links</a>
+      <span class="divider">|</span>
+      <a href="stats">Statistics</a>
+      <span class="divider">|</span>
+      <a href="blog">My Blog</a>
+    </nav>
+  </header>
+
+  <div class="content-box">
+    <h1>Deity's Car Quiz Maker</h1>
+    <hr>
+
+    <button id="downloadQuizButton">Download Quiz</button>
+    <button id="copyQuizButton">Copy Quiz JSON</button>
+    <a href="https://3deity.space/cars/quiz">
+      <button>Back to Quiz</button>
+    </a>
+
+    <hr>
+
+    <!-- Search -->
+    <div style="position: relative;">
+      <div class="search-row">
+        <input id="searchBox" placeholder="Search car brand or model...">
+        <button id="addAllBtn">Add All</button>
+        <button id="excludeAllBtn">Exclude All</button>
+      </div>
+      <div id="dropdown"></div>
+    </div>
+
+    <p>
+      Showing
+      <input id="showCount" value="10" style="width:50px">
+      /
+      <span id="totalCount">0</span>
+      results
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Car</th>
+        </tr>
+      </thead>
+      <tbody id="carTable"></tbody>
+    </table>
+  </div>
+
+<script>
+/* ================= CONFIG ================= */
+const CAR_LIST_URL = "/data/car_models.json"; // ← change ONLY if needed
+const DEFAULT_SHOW = 10;
+
+/* ================= STATE ================= */
+let allCars = [];
+let selectedCars = [];
+let showLimit = DEFAULT_SHOW;
+
+/* ================= LOAD DATA ================= */
+fetch(CAR_LIST_URL)
+  .then(r => r.json())
+  .then(data => {
+    allCars = data.sort();
+    renderDropdown();
+    updateTable();
+  });
+
+/* ================= SEARCH ================= */
+const searchBox = document.getElementById("searchBox");
+const dropdown = document.getElementById("dropdown");
+
+searchBox.addEventListener("input", renderDropdown);
+
+function renderDropdown() {
+  const value = searchBox.value.toLowerCase();
+  dropdown.innerHTML = "";
+  if (!value) {
+    dropdown.style.display = "none";
+    return;
+  }
+
+  const matches = allCars.filter(c => c.toLowerCase().startsWith(value));
+  matches.forEach(car => {
+    const div = document.createElement("div");
+    div.textContent = car;
+    div.onclick = () => {
+      addCars([car]);
+      dropdown.style.display = "none";
+    };
+    dropdown.appendChild(div);
+  });
+
+  dropdown.style.display = matches.length ? "block" : "none";
+}
+
+/* ================= ADD / EXCLUDE ================= */
+document.getElementById("addAllBtn").onclick = () => {
+  const val = searchBox.value.toLowerCase();
+  const cars = val
+    ? allCars.filter(c => c.toLowerCase().startsWith(val))
+    : allCars;
+  addCars(cars);
+};
+
+document.getElementById("excludeAllBtn").onclick = () => {
+  const val = searchBox.value.toLowerCase();
+  selectedCars = selectedCars.filter(
+    c => !c.toLowerCase().startsWith(val)
+  );
+  updateTable();
+};
+
+function addCars(cars) {
+  cars.forEach(c => {
+    if (!selectedCars.includes(c)) selectedCars.push(c);
+  });
+  selectedCars.sort();
+  updateTable();
+}
+
+/* ================= TABLE ================= */
+function updateTable() {
+  const tbody = document.getElementById("carTable");
+  tbody.innerHTML = "";
+
+  document.getElementById("totalCount").textContent = selectedCars.length;
+
+  selectedCars.slice(0, showLimit).forEach((car, i) => {
+    const row = tbody.insertRow();
+    row.insertCell().textContent = i + 1;
+    row.insertCell().textContent = car;
+  });
+}
+
+/* ================= SHOW LIMIT ================= */
+const showInput = document.getElementById("showCount");
+showInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    const n = parseInt(showInput.value);
+    showLimit = isNaN(n) || n <= 0 ? DEFAULT_SHOW : n;
+    showInput.value = showLimit;
+    updateTable();
+  }
+});
+
+/* ================= EXPORT ================= */
+function getQuizJSON() {
+  return JSON.stringify(selectedCars, null, 2);
+}
+
+document.getElementById("copyQuizButton").onclick = () => {
+  navigator.clipboard.writeText(getQuizJSON());
+};
+
+document.getElementById("downloadQuizButton").onclick = () => {
+  const blob = new Blob([getQuizJSON()], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "car_quiz.json";
+  a.click();
+};
+</script>
+
+</body>
+</html>
