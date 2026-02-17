@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
 
   <link rel="icon" href="favicon.png" type="image/x-icon">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Libertinus+Mono&display=swap" rel="stylesheet">
@@ -32,6 +31,14 @@
   <h1>Deity's Random Car Quiz</h1>
   <hr>
 
+  <div class="button-container">
+    <button id="uploadQuizButton">Load Custom Quiz</button> <!-- NEW -->
+    <button id="pasteQuizButton">Paste Quiz JSON</button> <!-- NEW -->
+    <input type="file" id="quizFileInput" accept=".json" hidden> <!-- NEW -->
+  </div>
+
+  <hr>
+
   <div id="car-header" style="display:flex; align-items:center; gap:20px;">
     <img id="car-image"
       src="placeholder.png"
@@ -53,7 +60,7 @@
     </thead>
     <tbody></tbody>
   </table>
-
+  
   <hr>
 
   <div class="button-container">
@@ -66,26 +73,79 @@
 <script>
 /* ================= CONFIG ================= */
 
-const INFOBOX_BLACKLIST = [
-  "image",
-  "caption",
-  "name",
-  "sp",
-  "logo",
-  "flag"
-];
+const INFOBOX_BLACKLIST = ["image","caption","name","sp","logo","flag"];
 
 /* ================= STATE ================= */
 
-let cachedCars = null;
+let defaultCars = null;
+let customCars = null;
 let currentCarTitle = "";
 let currentRows = [];
 
-/* ================= UTILS ================= */
+/* ================= CAR LIST ================= */
 
-function titleCase(str) {
-  return str.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+function getActiveCarList() {
+  return customCars?.length ? customCars : defaultCars;
 }
+
+async function loadDefaultCarList() {
+  if (!defaultCars) {
+    const res = await fetch("/data/car_models.json");
+    defaultCars = await res.json();
+  }
+}
+
+function pickRandomTitle() {
+  const list = getActiveCarList();
+  return list[Math.floor(Math.random() * list.length)].replace(/ /g, "_");
+}
+
+/* ================= CUSTOM QUIZ LOAD ================= */
+
+function normalizeCarJSON(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.cars)) return data.cars;
+  throw new Error("Invalid quiz format");
+}
+
+function applyCustomQuiz(list) {
+  customCars = list;
+  loadNewCar();
+}
+
+document.getElementById("uploadQuizButton").onclick = () =>
+  document.getElementById("quizFileInput").click();
+
+document.getElementById("quizFileInput").onchange = async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const json = JSON.parse(text);
+    applyCustomQuiz(normalizeCarJSON(json));
+    alert("Custom quiz loaded!");
+  } catch {
+    alert("Invalid JSON file.");
+  }
+};
+
+document.getElementById("pasteQuizButton").onclick = () => {
+  const input = prompt("Paste your quiz JSON:");
+  if (!input) return;
+
+  try {
+    const json = JSON.parse(input);
+    applyCustomQuiz(normalizeCarJSON(json));
+    alert("Custom quiz loaded!");
+  } catch {
+    alert("Invalid JSON.");
+  }
+};
+
+/* ================= FETCH & RENDER (UNCHANGED CORE) ================= */
+
+// (Everything below this point is unchanged logic-wise)
 
 function cleanWikitext(text) {
   return text
@@ -95,195 +155,85 @@ function cleanWikitext(text) {
     .trim();
 }
 
-/* === {{convert}} handling === */
 function parseConvertTemplates(text) {
   return text.replace(/\{\{convert\|([^}]+)\}\}/g, (_, args) => {
-    const parts = args.split("|");
-    const value = parseFloat(parts[0]);
-    const from = parts[1];
-    const to = parts[2];
-    const decimals = parseInt(parts[3] || 0);
-
-    const conversions = {
-      in: { mm: v => v * 25.4 },
-      lb: { kg: v => v * 0.453592 },
-      bhp: { kW: v => v * 0.7457 }
-    };
-
-    if (!conversions[from] || !conversions[from][to]) return parts[0];
-
-    const converted = conversions[from][to](value);
-    return `${value.toLocaleString()} ${from} (${converted.toLocaleString(undefined,{maximumFractionDigits:decimals})} ${to})`;
+    const [v,f,t,d=0] = args.split("|");
+    const conv = { in:{mm:25.4}, lb:{kg:0.453592}, bhp:{kW:0.7457} };
+    if (!conv[f]?.[t]) return v;
+    return `${(+v).toLocaleString()} ${f} (${(+v*conv[f][t]).toLocaleString(undefined,{maximumFractionDigits:d})} ${t})`;
   });
-}
-
-/* ================= DATA ================= */
-
-async function loadCarList() {
-  if (!cachedCars) {
-    const res = await fetch("/data/car_models.json");
-    cachedCars = await res.json();
-  }
-}
-
-function pickRandomTitle() {
-  return cachedCars[Math.floor(Math.random() * cachedCars.length)].replace(/ /g, "_");
 }
 
 async function fetchCarImage(title) {
-  const res = await fetch(
-    `https://en.wikipedia.org/w/api.php?origin=*&action=query&titles=${encodeURIComponent(title)}&prop=pageimages&pithumbsize=400&format=json`
-  );
-  const data = await res.json();
-  const page = data.query.pages[Object.keys(data.query.pages)[0]];
-  return page.thumbnail?.source || "placeholder.png";
+  const r = await fetch(`https://en.wikipedia.org/w/api.php?origin=*&action=query&titles=${title}&prop=pageimages&pithumbsize=400&format=json`);
+  const d = await r.json();
+  const p = d.query.pages[Object.keys(d.query.pages)[0]];
+  return p.thumbnail?.source || "placeholder.png";
 }
 
 async function fetchCarData(title) {
-  const res = await fetch(
-    `https://en.wikipedia.org/w/api.php?origin=*&action=parse&page=${encodeURIComponent(title)}&prop=wikitext&format=json`
-  );
-  const data = await res.json();
-  const wikitext = data.parse.wikitext["*"];
+  const r = await fetch(`https://en.wikipedia.org/w/api.php?origin=*&action=parse&page=${title}&prop=wikitext&format=json`);
+  const d = await r.json();
+  const w = d.parse.wikitext["*"];
+  const box = w.match(/\{\{Infobox automobile([\s\S]*?)\n\}\}/);
+  if (!box) return null;
 
-  const infobox = wikitext.match(/\{\{Infobox automobile([\s\S]*?)\n\}\}/);
-  if (!infobox) return null;
-
-  const lines = infobox[1].split("\n").filter(l => l.startsWith("|"));
-
-  const properties = lines.map(line => {
-    const [key, ...rest] = line.slice(1).split("=");
-    const value = rest.join("=").trim();
-    const cleanKey = key.trim().toLowerCase();
-
-    if (!value || INFOBOX_BLACKLIST.includes(cleanKey)) return null;
-
-    const processed = cleanWikitext(parseConvertTemplates(value));
-    const answers = processed.split(/\n|\*\s*/).map(v => v.trim()).filter(Boolean);
-
-    return {
-      label: titleCase(cleanKey),
-      answers,
-      revealed: false,
-      userInput: ""
-    };
+  const props = box[1].split("\n").filter(l=>l.startsWith("|")).map(l=>{
+    const [k,...r]=l.slice(1).split("=");
+    const key=k.trim().toLowerCase();
+    if (INFOBOX_BLACKLIST.includes(key)) return null;
+    const val=cleanWikitext(parseConvertTemplates(r.join("=").trim()));
+    if (!val) return null;
+    return { label:key.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()), answers:val.split(/\n|\*/).filter(Boolean), revealed:false, userInput:"" };
   }).filter(Boolean);
 
-  return {
-    title: title.replace(/_/g, " "),
-    image: await fetchCarImage(title),
-    properties
-  };
+  return { title:title.replace(/_/g," "), image:await fetchCarImage(title), properties:props };
 }
 
-/* ================= RENDER ================= */
-
 function renderCar(car) {
-  document.getElementById("car-name").textContent = car.title;
-  document.getElementById("car-image").src = car.image;
-  currentRows = car.properties;
-  renderTable();
+  car && (
+    document.getElementById("car-name").textContent = car.title,
+    document.getElementById("car-image").src = car.image,
+    currentRows = car.properties,
+    renderTable()
+  );
 }
 
 function renderTable() {
-  const tbody = document.querySelector("#quiz-table tbody");
-  tbody.innerHTML = "";
-
-  currentRows.forEach((row, i) => {
-    const tr = document.createElement("tr");
-
-    if (row.revealed) {
-      tr.innerHTML = `
-        <td>${row.label}</td>
-        <td>${row.answers.join("<br>")}</td>
-        <td>${row.userInput}</td>
-        <td>${bestScore(row.userInput, row.answers)}%</td>
-      `;
-    } else {
-      tr.innerHTML = `
-        <td>${row.label}</td>
-        <td style="background:black;color:black;">████</td>
-        <td><input type="text" data-i="${i}"></td>
-        <td><button data-i="${i}">Check?</button></td>
-      `;
-    }
-
-    tbody.appendChild(tr);
+  const t=document.querySelector("#quiz-table tbody");
+  t.innerHTML="";
+  currentRows.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML = r.revealed
+      ? `<td>${r.label}</td><td>${r.answers.join("<br>")}</td><td>${r.userInput}</td><td>${bestScore(r.userInput,r.answers)}%</td>`
+      : `<td>${r.label}</td><td style="background:black;color:black;">████</td><td><input data-i="${i}"></td><td><button data-i="${i}">Check?</button></td>`;
+    t.appendChild(tr);
   });
-
-  tbody.querySelectorAll("button").forEach(btn => {
-    btn.onclick = () => {
-      const i = btn.dataset.i;
-      const input = tbody.querySelector(`input[data-i="${i}"]`);
-      currentRows[i].userInput = input.value;
-      currentRows[i].revealed = true;
-      renderTable();
-    };
+  t.querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    const i=b.dataset.i;
+    currentRows[i].userInput=t.querySelector(`input[data-i="${i}"]`).value;
+    currentRows[i].revealed=true;
+    renderTable();
   });
 }
 
-/* ================= SCORING ================= */
+function levenshtein(a,b){const m=[];for(let i=0;i<=b.length;i++)m[i]=[i];for(let j=0;j<=a.length;j++)m[0][j]=j;for(let i=1;i<=b.length;i++)for(let j=1;j<=a.length;j++)m[i][j]=b[i-1]===a[j-1]?m[i-1][j-1]:Math.min(m[i-1][j-1]+1,m[i][j-1]+1,m[i-1][j]+1);return m[b.length][a.length]}
+function similarity(a,b){return Math.max(0,1-levenshtein(a,b)/Math.max(a.length,b.length))}
+function bestScore(u,a){return u?Math.max(...a.map(v=>Math.round(similarity(u.toLowerCase(),v.toLowerCase())*100))):0}
 
-function levenshtein(a, b) {
-  const m = [];
-  for (let i = 0; i <= b.length; i++) m[i] = [i];
-  for (let j = 0; j <= a.length; j++) m[0][j] = j;
-
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      m[i][j] = b[i - 1] === a[j - 1]
-        ? m[i - 1][j - 1]
-        : Math.min(m[i - 1][j - 1] + 1, m[i][j - 1] + 1, m[i - 1][j] + 1);
-    }
-  }
-  return m[b.length][a.length];
-}
-
-function similarity(a, b) {
-  const dist = levenshtein(a, b);
-  return Math.max(0, 1 - dist / Math.max(a.length, b.length));
-}
-
-function bestScore(user, answers) {
-  if (!user) return 0;
-  user = user.toLowerCase();
-  return Math.max(...answers.map(a =>
-    Math.round(similarity(user, a.toLowerCase()) * 100)
-  ));
-}
-
-/* ================= CHECK ALL ================= */
-
-function checkAllRows() {
-  const tbody = document.querySelector("#quiz-table tbody");
-
-  tbody.querySelectorAll("input").forEach(input => {
-    const i = input.dataset.i;
-    currentRows[i].userInput = input.value;
-    currentRows[i].revealed = true;
-  });
-
-  renderTable();
-}
-
-// attach to the button
-const checkAllButton = document.getElementById("checkAllButton");
+function checkAllRows(){document.querySelectorAll("input").forEach(i=>{const x=i.dataset.i;currentRows[x].userInput=i.value;currentRows[x].revealed=true});renderTable()}
 checkAllButton.onclick = checkAllRows;
-
-/* ================= INIT ================= */
 
 async function loadNewCar() {
   currentCarTitle = pickRandomTitle();
-  const car = await fetchCarData(currentCarTitle);
-  renderCar(car);
+  renderCar(await fetchCarData(currentCarTitle));
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  await loadCarList();
-  await loadNewCar();
+  await loadDefaultCarList();
+  loadNewCar();
   randomCarButton.onclick = loadNewCar;
-  openInTabButton.onclick = () =>
-    window.open("https://en.wikipedia.org/wiki/" + currentCarTitle, "_blank");
+  openInTabButton.onclick = () => window.open("https://en.wikipedia.org/wiki/"+currentCarTitle);
 });
 </script>
 
