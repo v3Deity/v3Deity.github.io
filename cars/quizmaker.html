@@ -87,7 +87,7 @@
     </nav>
   </header>
 
-  <div class="content-box">
+  <div class="content-box" style="padding-bottom: 100px">
     <h1>Deity's Car Quiz Maker</h1>
     <hr>
 
@@ -156,28 +156,53 @@ const searchBox = document.getElementById("searchBox");
 const dropdown = document.getElementById("dropdown");
 
 searchBox.addEventListener("input", renderDropdown);
+searchBox.addEventListener("focus", renderDropdown);
+
+searchBox.addEventListener("blur", () => {
+  // Delay so clicks on dropdown items still register
+  setTimeout(() => {
+    dropdown.style.display = "none";
+  }, 150);
+});
+
 
 function renderDropdown() {
+  // Only show dropdown if search box is focused
+  if (document.activeElement !== searchBox) {
+    dropdown.style.display = "none";
+    return;
+  }
+
   const value = searchBox.value.toLowerCase();
   dropdown.innerHTML = "";
+
   if (!value) {
     dropdown.style.display = "none";
     return;
   }
 
-  const matches = allCars.filter(c => c.toLowerCase().startsWith(value));
+  const matches = allCars.filter(c =>
+    c.toLowerCase().startsWith(value)
+  );
+
   matches.forEach(car => {
     const div = document.createElement("div");
     div.textContent = car;
+
+    // Prevent blur before click fires
+    div.addEventListener("mousedown", e => e.preventDefault());
+
     div.onclick = () => {
       addCars([car]);
       dropdown.style.display = "none";
     };
+
     dropdown.appendChild(div);
   });
 
   dropdown.style.display = matches.length ? "block" : "none";
 }
+
 
 /* ================= ADD / EXCLUDE ================= */
 document.getElementById("addAllBtn").onclick = () => {
