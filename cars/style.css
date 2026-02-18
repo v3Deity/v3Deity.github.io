@@ -63,6 +63,15 @@ body {
   opacity: 0.8;
 }
 
+a:link {
+  color: #00ff00;
+  font-weight: bold;
+}
+a:visited {
+  color:  #009f00;
+  font-weight: bold;
+}
+
 .divider {
   color: white;
   font-weight: bold;
