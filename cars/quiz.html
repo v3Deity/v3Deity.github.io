@@ -62,7 +62,7 @@
         <th>Property</th>
         <th>Value</th>
         <th>Your Answer</th>
-        <th>Check</th>
+        <th>Score</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -81,6 +81,9 @@
 /* ================= CONFIG ================= */
 
 const INFOBOX_BLACKLIST = ["image","caption","name","sp","logo","flag"];
+
+// Levenshtein scoring: require at least this similarity to count as correct
+const SCORE_THRESHOLD = 0.75;
 
 /* ================= STATE ================= */
 
@@ -150,26 +153,141 @@ document.getElementById("pasteQuizButton").onclick = () => {
   }
 };
 
-/* ================= FETCH & RENDER (UNCHANGED CORE) ================= */
+/* ================= WIKITEXT CLEANING ================= */
 
-// (Everything below this point is unchanged logic-wise)
+// Expand {{convert|...}} and {{cvt|...}} into "X unit (Y unit)" strings.
+// Supports common car-related conversions in both directions.
+function parseConvertTemplates(text) {
+  const convTable = {
+    // metric → imperial
+    kg:   { lb:  2.20462  },
+    mm:   { in:  0.0393701 },
+    cm:   { in:  0.393701  },
+    kW:   { bhp: 1.34102,  hp: 1.34102 },
+    "L":  { "cu in": 61.0237 },
+    km:   { mi:  0.621371  },
+    "km/h": { "mph": 0.621371 },
+    // imperial → metric
+    lb:   { kg:  0.453592  },
+    "in": { mm:  25.4, cm: 2.54 },
+    bhp:  { kW:  0.7457    },
+    hp:   { kW:  0.7457    },
+    mi:   { km:  1.60934   },
+    mph:  { "km/h": 1.60934 },
+    "cu in": { "L": 0.0163871 },
+  };
 
+  return text.replace(/\{\{(?:convert|cvt)\|([^}]+)\}\}/g, (_, args) => {
+    const parts = args.split("|");
+    const value = parts[0];
+    const fromUnit = parts[1];
+    const toUnit = parts[2];
+    // Optional decimal places arg (e.g. |0 or |2), default 0
+    const decimals = parts.find((p, i) => i >= 3 && /^\d+$/.test(p));
+    const dp = decimals !== undefined ? parseInt(decimals) : 0;
+
+    const rate = convTable[fromUnit]?.[toUnit];
+    if (!rate) return `${value} ${fromUnit}`;  // graceful fallback: just show original
+
+    const converted = (+value * rate).toLocaleString(undefined, { maximumFractionDigits: dp });
+    const original = (+value).toLocaleString();
+    return `${original} ${fromUnit} (${converted} ${toUnit})`;
+  });
+}
+
+// Strip or convert all known Wikipedia list/formatting templates,
+// then do general wikitext cleanup.
 function cleanWikitext(text) {
   return text
-    .replace(/<ref.*?>.*?<\/ref>/g, "")
+    // Remove <ref>...</ref> citation blocks
+    .replace(/<ref[^>]*>[\s\S]*?<\/ref>/g, "")
+    .replace(/<ref[^>]*\/>/g, "")
+
+    // {{ubl|a|b|c}} → "a\nb\nc"  (unbulleted list)
+    .replace(/\{\{ubl\|([^}]+)\}\}/gi, (_, inner) =>
+      inner.split("|").map(s => s.trim()).filter(Boolean).join("\n")
+    )
+
+    // {{hlist|a|b|c}} → "a\nb\nc"  (horizontal list)
+    .replace(/\{\{hlist\|([^}]+)\}\}/gi, (_, inner) =>
+      inner.split("|").map(s => s.trim()).filter(Boolean).join("\n")
+    )
+
+    // {{flatlist|...}} — content is usually newline-separated bullet items inside
+    .replace(/\{\{flatlist\|([\s\S]*?)\}\}/gi, (_, inner) =>
+      inner.replace(/^\s*\*\s*/gm, "").trim()
+    )
+
+    // {{plainlist|...}} — same idea
+    .replace(/\{\{plainlist\|([\s\S]*?)\}\}/gi, (_, inner) =>
+      inner.replace(/^\s*\*\s*/gm, "").trim()
+    )
+
+    // {{nowrap|text}} → text
+    .replace(/\{\{nowrap\|([^}]+)\}\}/gi, "$1")
+
+    // {{abbr|short|long}} → "short (long)"
+    .replace(/\{\{abbr\|([^|]+)\|([^}]+)\}\}/gi, "$1 ($2)")
+
+    // {{small|text}} → text
+    .replace(/\{\{small\|([^}]+)\}\}/gi, "$1")
+
+    // {{efn|...}}, {{sfn|...}} — footnote templates, discard
+    .replace(/\{\{[a-z]+fn[^}]*\}\}/gi, "")
+
+    // Any remaining {{ }} template — strip entirely
+    .replace(/\{\{[^}]*\}\}/g, "")
+
+    // [[Link|Label]] or [[Label]] → Label
     .replace(/\[\[([^|\]]+\|)?([^\]]+)\]\]/g, "$2")
+
+    // Bold/italic wiki markup
     .replace(/'''?/g, "")
+
+    // HTML tags (e.g. <br>, <small>)
+    .replace(/<[^>]+>/g, "")
+
     .trim();
 }
 
-function parseConvertTemplates(text) {
-  return text.replace(/\{\{convert\|([^}]+)\}\}/g, (_, args) => {
-    const [v,f,t,d=0] = args.split("|");
-    const conv = { in:{mm:25.4}, lb:{kg:0.453592}, bhp:{kW:0.7457} };
-    if (!conv[f]?.[t]) return v;
-    return `${(+v).toLocaleString()} ${f} (${(+v*conv[f][t]).toLocaleString(undefined,{maximumFractionDigits:d})} ${t})`;
-  });
+/* ================= SCORING ================= */
+
+function levenshtein(a, b) {
+  const m = [];
+  for (let i = 0; i <= b.length; i++) m[i] = [i];
+  for (let j = 0; j <= a.length; j++) m[0][j] = j;
+  for (let i = 1; i <= b.length; i++)
+    for (let j = 1; j <= a.length; j++)
+      m[i][j] = b[i-1] === a[j-1]
+        ? m[i-1][j-1]
+        : Math.min(m[i-1][j-1]+1, m[i][j-1]+1, m[i-1][j]+1);
+  return m[b.length][a.length];
 }
+
+function similarity(a, b) {
+  if (!a || !b) return 0;
+  return Math.max(0, 1 - levenshtein(a, b) / Math.max(a.length, b.length));
+}
+
+// Returns 0–100. A score below SCORE_THRESHOLD × 100 is treated as wrong.
+function bestScore(userInput, answers) {
+  if (!userInput) return 0;
+  const u = userInput.toLowerCase().trim();
+  const raw = Math.max(...answers.map(v =>
+    Math.round(similarity(u, v.toLowerCase().trim()) * 100)
+  ));
+  // Clamp: below threshold counts as 0 so partial credit isn't misleadingly shown
+  return raw >= SCORE_THRESHOLD * 100 ? raw : 0;
+}
+
+function scoreColor(score) {
+  if (score === 100) return "#00cc44";
+  if (score >= 75)  return "#aacc00";
+  if (score > 0)    return "#ff9900";
+  return "#cc2200";
+}
+
+/* ================= FETCH & RENDER ================= */
 
 async function fetchCarImage(title) {
   const r = await fetch(`https://en.wikipedia.org/w/api.php?origin=*&action=query&titles=${title}&prop=pageimages&pithumbsize=400&format=json`);
@@ -185,51 +303,79 @@ async function fetchCarData(title) {
   const box = w.match(/\{\{Infobox automobile([\s\S]*?)\n\}\}/);
   if (!box) return null;
 
-  const props = box[1].split("\n").filter(l=>l.startsWith("|")).map(l=>{
-    const [k,...r]=l.slice(1).split("=");
-    const key=k.trim().toLowerCase();
+  const props = box[1].split("\n").filter(l => l.startsWith("|")).map(l => {
+    const [k, ...rest] = l.slice(1).split("=");
+    const key = k.trim().toLowerCase();
     if (INFOBOX_BLACKLIST.includes(key)) return null;
-    const val=cleanWikitext(parseConvertTemplates(r.join("=").trim()));
+
+    // Run convert templates FIRST (before cleanWikitext strips {{ }})
+    const rawVal = parseConvertTemplates(rest.join("=").trim());
+    const val = cleanWikitext(rawVal);
     if (!val) return null;
-    return { label:key.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()), answers:val.split(/\n|\*/).filter(Boolean), revealed:false, userInput:"" };
+
+    return {
+      label: key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+      answers: val.split(/\n|\*/).map(s => s.trim()).filter(Boolean),
+      revealed: false,
+      userInput: ""
+    };
   }).filter(Boolean);
 
-  return { title:title.replace(/_/g," "), image:await fetchCarImage(title), properties:props };
+  return { title: title.replace(/_/g, " "), image: await fetchCarImage(title), properties: props };
 }
 
 function renderCar(car) {
-  car && (
-    document.getElementById("car-name").textContent = car.title,
-    document.getElementById("car-image").src = car.image,
-    currentRows = car.properties,
-    renderTable()
-  );
+  if (!car) return;
+  document.getElementById("car-name").textContent = car.title;
+  document.getElementById("car-image").src = car.image;
+  currentRows = car.properties;
+  renderTable();
 }
 
 function renderTable() {
-  const t=document.querySelector("#quiz-table tbody");
-  t.innerHTML="";
-  currentRows.forEach((r,i)=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML = r.revealed
-      ? `<td>${r.label}</td><td>${r.answers.join("<br>")}</td><td>${r.userInput}</td><td>${bestScore(r.userInput,r.answers)}%</td>`
-      : `<td>${r.label}</td><td style="background:black;color:black;">████</td><td><input data-i="${i}"></td><td><button data-i="${i}">Check?</button></td>`;
+  const t = document.querySelector("#quiz-table tbody");
+  t.innerHTML = "";
+
+  currentRows.forEach((r, i) => {
+    const tr = document.createElement("tr");
+
+    if (r.revealed) {
+      const score = bestScore(r.userInput, r.answers);
+      const color = scoreColor(score);
+      tr.innerHTML = `
+        <td>${r.label}</td>
+        <td>${r.answers.join("<br>")}</td>
+        <td>${r.userInput}</td>
+        <td style="color:${color}; font-weight:bold;">${score}%</td>`;
+    } else {
+      tr.innerHTML = `
+        <td>${r.label}</td>
+        <td style="background:black; color:black;">████</td>
+        <td><input data-i="${i}"></td>
+        <td><button data-i="${i}">Check?</button></td>`;
+    }
+
     t.appendChild(tr);
   });
-  t.querySelectorAll("button").forEach(b=>b.onclick=()=>{
-    const i=b.dataset.i;
-    currentRows[i].userInput=t.querySelector(`input[data-i="${i}"]`).value;
-    currentRows[i].revealed=true;
+
+  t.querySelectorAll("button").forEach(b => b.onclick = () => {
+    const i = b.dataset.i;
+    currentRows[i].userInput = t.querySelector(`input[data-i="${i}"]`).value;
+    currentRows[i].revealed = true;
     renderTable();
   });
 }
 
-function levenshtein(a,b){const m=[];for(let i=0;i<=b.length;i++)m[i]=[i];for(let j=0;j<=a.length;j++)m[0][j]=j;for(let i=1;i<=b.length;i++)for(let j=1;j<=a.length;j++)m[i][j]=b[i-1]===a[j-1]?m[i-1][j-1]:Math.min(m[i-1][j-1]+1,m[i][j-1]+1,m[i-1][j]+1);return m[b.length][a.length]}
-function similarity(a,b){return Math.max(0,1-levenshtein(a,b)/Math.max(a.length,b.length))}
-function bestScore(u,a){return u?Math.max(...a.map(v=>Math.round(similarity(u.toLowerCase(),v.toLowerCase())*100))):0}
+function checkAllRows() {
+  document.querySelectorAll("#quiz-table input").forEach(input => {
+    const i = input.dataset.i;
+    currentRows[i].userInput = input.value;
+    currentRows[i].revealed = true;
+  });
+  renderTable();
+}
 
-function checkAllRows(){document.querySelectorAll("input").forEach(i=>{const x=i.dataset.i;currentRows[x].userInput=i.value;currentRows[x].revealed=true});renderTable()}
-checkAllButton.onclick = checkAllRows;
+/* ================= INIT ================= */
 
 async function loadNewCar() {
   currentCarTitle = pickRandomTitle();
@@ -239,8 +385,11 @@ async function loadNewCar() {
 document.addEventListener("DOMContentLoaded", async () => {
   await loadDefaultCarList();
   loadNewCar();
-  randomCarButton.onclick = loadNewCar;
-  openInTabButton.onclick = () => window.open("https://en.wikipedia.org/wiki/"+currentCarTitle);
+
+  document.getElementById("checkAllButton").onclick = checkAllRows;
+  document.getElementById("randomCarButton").onclick = loadNewCar;
+  document.getElementById("openInTabButton").onclick = () =>
+    window.open("https://en.wikipedia.org/wiki/" + currentCarTitle);
 });
 </script>
 
