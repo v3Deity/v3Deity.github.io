@@ -204,7 +204,7 @@ function cleanWikitext(text) {
     .replace(/<ref[^>]*\/>/g, "")
 
     // {{ubl|a|b|c}} → "a\nb\nc"  (unbulleted list)
-    .replace(/\{\{ubl\|([^}]+)\}\}/gi, (_, inner) =>
+    .replace(/\{\{(?:ubl|unbulleted list)\|([^}]+)\}\}/gi, (_, inner) =>
       inner.split("|").map(s => s.trim()).filter(Boolean).join("\n")
     )
 
@@ -236,7 +236,7 @@ function cleanWikitext(text) {
     .replace(/\{\{[a-z]+fn[^}]*\}\}/gi, "")
 
     // Any remaining {{ }} template — strip entirely
-    .replace(/\{\{[^}]*\}\}/g, "")
+    .replace(/\{\{[\s\S]*?\}\}/g, "")
 
     // [[Link|Label]] or [[Label]] → Label
     .replace(/\[\[([^|\]]+\|)?([^\]]+)\]\]/g, "$2")
@@ -315,7 +315,7 @@ async function fetchCarData(title) {
 
     return {
       label: key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
-      answers: val.split(/\n|\*/).map(s => s.trim()).filter(Boolean),
+      answers: val.split(/\n|\*+/).map(s => s.trim()).filter(Boolean),
       revealed: false,
       userInput: ""
     };
