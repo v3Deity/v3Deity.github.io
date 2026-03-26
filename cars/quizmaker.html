@@ -235,9 +235,12 @@ document.getElementById("addAllBtn").onclick = () => {
 
 document.getElementById("excludeAllBtn").onclick = () => {
   const val = searchBox.value;
-  if (!val) return;
-  const toRemove = new Set(getMatches(val));
-  selectedCars = selectedCars.filter(c => !toRemove.has(c));
+  if (!val) {
+    selectedCars = [];
+  } else {
+    const toRemove = new Set(getMatches(val));
+    selectedCars = selectedCars.filter(c => !toRemove.has(c));
+  }
   updateTable();
 };
 
