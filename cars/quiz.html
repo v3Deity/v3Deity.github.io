@@ -327,7 +327,7 @@ async function fetchCarData(title) {
     const fullInbox = w.slice(infoboxStart, i);
     // Strip the "{{Infobox automobile" header line, keep just the fields
     const firstNewline = fullInbox.indexOf("\n");
-    infoboxText = fullInbox.slice(firstNewline);
+    infoboxText = fullInbox.slice(firstNewline).replace(/\s*\}\}\s*$/, "");
   }
 
   // Split infobox into fields by finding | characters at brace/bracket depth 0.
