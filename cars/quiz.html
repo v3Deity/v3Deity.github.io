@@ -203,7 +203,7 @@ function cleanWikitext(text) {
     .replace(/<ref[^>]*>[\s\S]*?<\/ref>/g, "")
     .replace(/<ref[^>]*\/>/g, "")
 
-    // {{ubl|a|b|c}} → "a\nb\nc"  (unbulleted list)
+    // {{ubl|a|b|c}} or {{unbulleted list|a|b|c}} → "a\nb\nc"
     .replace(/\{\{(?:ubl|unbulleted list)\|([^}]+)\}\}/gi, (_, inner) =>
       inner.split("|").map(s => s.trim()).filter(Boolean).join("\n")
     )
@@ -213,14 +213,14 @@ function cleanWikitext(text) {
       inner.split("|").map(s => s.trim()).filter(Boolean).join("\n")
     )
 
-    // {{flatlist|...}} — content is usually newline-separated bullet items inside
+    // {{flatlist|...}} — content is newline-separated bullet items inside
     .replace(/\{\{flatlist\|([\s\S]*?)\}\}/gi, (_, inner) =>
-      inner.replace(/^\s*\*\s*/gm, "").trim()
+      inner.replace(/^\s*\*+\s*/gm, "").trim()
     )
 
     // {{plainlist|...}} — same idea
     .replace(/\{\{plainlist\|([\s\S]*?)\}\}/gi, (_, inner) =>
-      inner.replace(/^\s*\*\s*/gm, "").trim()
+      inner.replace(/^\s*\*+\s*/gm, "").trim()
     )
 
     // {{nowrap|text}} → text
@@ -233,9 +233,9 @@ function cleanWikitext(text) {
     .replace(/\{\{small\|([^}]+)\}\}/gi, "$1")
 
     // {{efn|...}}, {{sfn|...}} — footnote templates, discard
-    .replace(/\{\{[a-z]+fn[^}]*\}\}/gi, "")
+    .replace(/\{\{[a-z]+fn[\s\S]*?\}\}/gi, "")
 
-    // Any remaining {{ }} template — strip entirely
+    // Any remaining {{ }} template — use [\s\S]*? to match across newlines
     .replace(/\{\{[\s\S]*?\}\}/g, "")
 
     // [[Link|Label]] or [[Label]] → Label
@@ -303,7 +303,24 @@ async function fetchCarData(title) {
   const box = w.match(/\{\{Infobox automobile([\s\S]*?)\n\}\}/);
   if (!box) return null;
 
-  const props = box[1].split("\n").filter(l => l.startsWith("|")).map(l => {
+  // The infobox content as a single string
+  let infoboxText = box[1];
+
+  // Collapse multi-line template values (e.g. {{unbulleted list\n| a\n| b}})
+  // into a single line so the \n-based field splitter doesn't cut them short.
+  // Strategy: join any line that does NOT start with | onto the previous line.
+  const lines = infoboxText.split("\n");
+  const joinedLines = [];
+  for (const line of lines) {
+    if (line.startsWith("|") || joinedLines.length === 0) {
+      joinedLines.push(line);
+    } else {
+      // Append to previous line with a space
+      joinedLines[joinedLines.length - 1] += " " + line.trim();
+    }
+  }
+
+  const props = joinedLines.filter(l => l.startsWith("|")).map(l => {
     const [k, ...rest] = l.slice(1).split("=");
     const key = k.trim().toLowerCase();
     if (INFOBOX_BLACKLIST.includes(key)) return null;
