@@ -204,13 +204,13 @@ function cleanWikitext(text) {
     .replace(/<ref[^>]*\/>/g, "")
 
     // {{ubl|a|b|c}} or {{unbulleted list|a|b|c}} → "a\nb\nc"
-    // After template collapsing, may have spaces: {{unbulleted list | a | b }}
-    .replace(/\{\{(?:ubl|unbulleted list)\s*\|([^}]*)\}\}/gi, (_, inner) =>
+    // Items may be separated by "|\n  " or just "|" depending on wiki formatting
+    .replace(/\{\{(?:ubl|unbulleted list)\s*\|([\s\S]*?)\}\}/gi, (_, inner) =>
       inner.split("|").map(s => s.trim()).filter(Boolean).join("\n")
     )
 
     // {{hlist|a|b|c}} → "a\nb\nc"  (horizontal list)
-    .replace(/\{\{hlist\s*\|([^}]*)\}\}/gi, (_, inner) =>
+    .replace(/\{\{hlist\s*\|([\s\S]*?)\}\}/gi, (_, inner) =>
       inner.split("|").map(s => s.trim()).filter(Boolean).join("\n")
     )
 
@@ -307,41 +307,57 @@ async function fetchCarData(title) {
   // The infobox content as a single string
   const infoboxText = box[1];
 
-  // Collapse multi-line templates (e.g. {{unbulleted list\n| a\n| b\n}})
-  // into single lines BEFORE splitting on \n to extract fields.
-  // Walk character by character tracking {{ brace depth so we know exactly
-  // where each template starts and ends, even across newlines.
-  function collapseTemplates(str) {
-    let result = "";
+  // Split infobox into fields by finding | characters at brace/bracket depth 0.
+  // This correctly handles multi-line templates like {{unbulleted list | a | b }}
+  // whose internal | characters must NOT be treated as field separators.
+  function splitFields(str) {
+    const fields = [];
+    let current = "";
     let depth = 0;
+
     for (let i = 0; i < str.length; i++) {
-      if (str[i] === "{" && str[i+1] === "{") {
+      const ch = str[i];
+
+      if (ch === "{" && str[i+1] === "{") {
         depth++;
-        result += "{{";
+        current += "{{";
         i++;
-      } else if (str[i] === "}" && str[i+1] === "}") {
+      } else if (ch === "}" && str[i+1] === "}") {
         depth--;
-        result += "}}";
+        current += "}}";
         i++;
-      } else if (str[i] === "\n" && depth > 0) {
-        // Inside a template: replace newline with a space to keep it on one line
-        result += " ";
+      } else if (ch === "[" && str[i+1] === "[") {
+        depth++;
+        current += "[[";
+        i++;
+      } else if (ch === "]" && str[i+1] === "]") {
+        depth--;
+        current += "]]";
+        i++;
+      } else if (ch === "|" && depth === 0) {
+        // Top-level pipe = new field boundary
+        fields.push(current);
+        current = "";
       } else {
-        result += str[i];
+        current += ch;
       }
     }
-    return result;
+    if (current.trim()) fields.push(current);
+    return fields;
   }
 
-  const collapsed = collapseTemplates(infoboxText);
+  const fields = splitFields(infoboxText);
 
-  const props = collapsed.split("\n").filter(l => l.startsWith("|")).map(l => {
-    const [k, ...rest] = l.slice(1).split("=");
-    const key = k.trim().toLowerCase();
-    if (INFOBOX_BLACKLIST.includes(key)) return null;
+  const props = fields.map(field => {
+    // Each field is "key = value" (with possible newlines and whitespace)
+    const eqIdx = field.indexOf("=");
+    if (eqIdx === -1) return null;
 
-    // Run convert templates FIRST (before cleanWikitext strips {{ }})
-    const rawVal = parseConvertTemplates(rest.join("=").trim());
+    const key = field.slice(0, eqIdx).trim().replace(/\n/g, "").toLowerCase();
+    if (!key || INFOBOX_BLACKLIST.includes(key)) return null;
+
+    // Value: everything after the first =, strip leading/trailing whitespace
+    const rawVal = parseConvertTemplates(field.slice(eqIdx + 1).trim());
     const val = cleanWikitext(rawVal);
     if (!val) return null;
 
