@@ -301,11 +301,34 @@ async function fetchCarData(title) {
   const r = await fetch(`https://en.wikipedia.org/w/api.php?origin=*&action=parse&page=${title}&prop=wikitext&format=json`);
   const d = await r.json();
   const w = d.parse.wikitext["*"];
-  const box = w.match(/\{\{Infobox automobile([\s\S]*?)\n\}\}/);
-  if (!box) return null;
+  // Find the infobox using depth-tracking instead of a regex,
+  // so nested templates like {{unbulleted list}} don't trick it into
+  // stopping early at the wrong }}.
+  const infoboxStart = w.search(/\{\{Infobox automobile/i);
+  if (infoboxStart === -1) return null;
 
-  // The infobox content as a single string
-  const infoboxText = box[1];
+  let infoboxText = "";
+  {
+    let depth = 0;
+    let i = infoboxStart;
+    while (i < w.length) {
+      if (w[i] === "{" && w[i+1] === "{") {
+        depth++;
+        i += 2;
+      } else if (w[i] === "}" && w[i+1] === "}") {
+        depth--;
+        i += 2;
+        if (depth === 0) break;
+      } else {
+        i++;
+      }
+    }
+    // Extract everything between the outer {{ and }}
+    const fullInbox = w.slice(infoboxStart, i);
+    // Strip the "{{Infobox automobile" header line, keep just the fields
+    const firstNewline = fullInbox.indexOf("\n");
+    infoboxText = fullInbox.slice(firstNewline);
+  }
 
   // Split infobox into fields by finding | characters at brace/bracket depth 0.
   // This correctly handles multi-line templates like {{unbulleted list | a | b }}
