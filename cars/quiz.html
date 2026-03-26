@@ -204,12 +204,13 @@ function cleanWikitext(text) {
     .replace(/<ref[^>]*\/>/g, "")
 
     // {{ubl|a|b|c}} or {{unbulleted list|a|b|c}} → "a\nb\nc"
-    .replace(/\{\{(?:ubl|unbulleted list)\|([^}]+)\}\}/gi, (_, inner) =>
+    // After template collapsing, may have spaces: {{unbulleted list | a | b }}
+    .replace(/\{\{(?:ubl|unbulleted list)\s*\|([^}]*)\}\}/gi, (_, inner) =>
       inner.split("|").map(s => s.trim()).filter(Boolean).join("\n")
     )
 
     // {{hlist|a|b|c}} → "a\nb\nc"  (horizontal list)
-    .replace(/\{\{hlist\|([^}]+)\}\}/gi, (_, inner) =>
+    .replace(/\{\{hlist\s*\|([^}]*)\}\}/gi, (_, inner) =>
       inner.split("|").map(s => s.trim()).filter(Boolean).join("\n")
     )
 
@@ -304,23 +305,37 @@ async function fetchCarData(title) {
   if (!box) return null;
 
   // The infobox content as a single string
-  let infoboxText = box[1];
+  const infoboxText = box[1];
 
-  // Collapse multi-line template values (e.g. {{unbulleted list\n| a\n| b}})
-  // into a single line so the \n-based field splitter doesn't cut them short.
-  // Strategy: join any line that does NOT start with | onto the previous line.
-  const lines = infoboxText.split("\n");
-  const joinedLines = [];
-  for (const line of lines) {
-    if (line.startsWith("|") || joinedLines.length === 0) {
-      joinedLines.push(line);
-    } else {
-      // Append to previous line with a space
-      joinedLines[joinedLines.length - 1] += " " + line.trim();
+  // Collapse multi-line templates (e.g. {{unbulleted list\n| a\n| b\n}})
+  // into single lines BEFORE splitting on \n to extract fields.
+  // Walk character by character tracking {{ brace depth so we know exactly
+  // where each template starts and ends, even across newlines.
+  function collapseTemplates(str) {
+    let result = "";
+    let depth = 0;
+    for (let i = 0; i < str.length; i++) {
+      if (str[i] === "{" && str[i+1] === "{") {
+        depth++;
+        result += "{{";
+        i++;
+      } else if (str[i] === "}" && str[i+1] === "}") {
+        depth--;
+        result += "}}";
+        i++;
+      } else if (str[i] === "\n" && depth > 0) {
+        // Inside a template: replace newline with a space to keep it on one line
+        result += " ";
+      } else {
+        result += str[i];
+      }
     }
+    return result;
   }
 
-  const props = joinedLines.filter(l => l.startsWith("|")).map(l => {
+  const collapsed = collapseTemplates(infoboxText);
+
+  const props = collapsed.split("\n").filter(l => l.startsWith("|")).map(l => {
     const [k, ...rest] = l.slice(1).split("=");
     const key = k.trim().toLowerCase();
     if (INFOBOX_BLACKLIST.includes(key)) return null;
