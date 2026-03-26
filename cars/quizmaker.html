@@ -106,8 +106,8 @@
       <div class="search-row">
         <input id="searchBox" placeholder="Search car brand or model...">
         <div class="button-container">
-          <button id="addAllBtn">Add All</button>
-          <button id="excludeAllBtn">Exclude All</button>
+          <button id="addAllBtn">Load All</button>
+          <button id="excludeAllBtn">Clear List</button>
         </div>
       </div>
       <div id="dropdown"></div>
@@ -165,15 +165,39 @@ searchBox.addEventListener("blur", () => {
   }, 150);
 });
 
+// Normalise a search term: lowercase and treat spaces as underscores
+// so "Ford GT40" matches "Ford_GT40" in the car list.
+function normaliseQuery(str) {
+  return str.toLowerCase().replace(/ /g, "_");
+}
+
+// Returns cars matching the query, starts-with results first, then contains.
+function getMatches(query) {
+  if (!query) return [];
+  const q = normaliseQuery(query);
+  const starts = allCars.filter(c => c.toLowerCase().startsWith(q));
+  const contains = allCars.filter(c =>
+    !c.toLowerCase().startsWith(q) && c.toLowerCase().includes(q)
+  );
+  return [...starts, ...contains];
+}
+
+function updateButtonLabels() {
+  const hasQuery = searchBox.value.trim().length > 0;
+  document.getElementById("addAllBtn").textContent    = hasQuery ? "Include" : "Load All";
+  document.getElementById("excludeAllBtn").textContent = hasQuery ? "Exclude" : "Clear List";
+}
 
 function renderDropdown() {
+  updateButtonLabels();
+
   // Only show dropdown if search box is focused
   if (document.activeElement !== searchBox) {
     dropdown.style.display = "none";
     return;
   }
 
-  const value = searchBox.value.toLowerCase();
+  const value = searchBox.value;
   dropdown.innerHTML = "";
 
   if (!value) {
@@ -181,9 +205,7 @@ function renderDropdown() {
     return;
   }
 
-  const matches = allCars.filter(c =>
-    c.toLowerCase().startsWith(value)
-  );
+  const matches = getMatches(value);
 
   matches.forEach(car => {
     const div = document.createElement("div");
@@ -206,18 +228,16 @@ function renderDropdown() {
 
 /* ================= ADD / EXCLUDE ================= */
 document.getElementById("addAllBtn").onclick = () => {
-  const val = searchBox.value.toLowerCase();
-  const cars = val
-    ? allCars.filter(c => c.toLowerCase().startsWith(val))
-    : allCars;
+  const val = searchBox.value;
+  const cars = val ? getMatches(val) : allCars;
   addCars(cars);
 };
 
 document.getElementById("excludeAllBtn").onclick = () => {
-  const val = searchBox.value.toLowerCase();
-  selectedCars = selectedCars.filter(
-    c => !c.toLowerCase().startsWith(val)
-  );
+  const val = searchBox.value;
+  if (!val) return;
+  const toRemove = new Set(getMatches(val));
+  selectedCars = selectedCars.filter(c => !toRemove.has(c));
   updateTable();
 };
 
